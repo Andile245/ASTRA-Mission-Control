@@ -9,6 +9,7 @@ namespace Astra
         public bool AllowPlayerControl => TutorialManager.Instance != null && TutorialManager.Instance.IsActive && !TutorialManager.Instance.IsSuspended;
         public bool IsPracticeActive => AllowPlayerControl;
         public bool IsMissionSelectOpen { get; private set; }
+        public int SelectedMissionIndex { get; private set; }
 
         private AstraOnboardingUI ui;
         private AstraGameManager game;
@@ -40,6 +41,7 @@ namespace Astra
             game = AstraGameManager.Instance != null ? AstraGameManager.Instance : FindFirstObjectByType<AstraGameManager>();
             tutorial = GetComponent<TutorialManager>();
             astro = FindFirstObjectByType<AstroCompanionController>();
+            SelectedMissionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ASTRA_SELECTED_MISSION", 0), 0, AstraCampaignProgress.HighestUnlocked);
             if (tutorial != null) tutorial.StepChanged += TutorialStepChanged;
             Invoke(nameof(ShowWelcome), 0f);
         }
@@ -177,18 +179,31 @@ namespace Astra
         {
             IsMissionSelectOpen = true;
             hud()?.SetMissionHudVisible(false);
-            ui?.ShowMissionSelect();
+            ui?.ShowMissionSelect(SelectedMissionIndex, AstraCampaignProgress.HighestUnlocked);
             astro?.PointAt(null);
+        }
+
+        public void SelectMission(int index)
+        {
+            SelectedMissionIndex = Mathf.Clamp(index, 0, AstraMissionCatalog.Count - 1);
+            PlayerPrefs.SetInt("ASTRA_SELECTED_MISSION", SelectedMissionIndex);
+            PlayerPrefs.Save();
+            ui?.UpdateMissionSelection(SelectedMissionIndex, AstraCampaignProgress.HighestUnlocked);
         }
 
         public void LaunchMission()
         {
+            if (SelectedMissionIndex > AstraCampaignProgress.HighestUnlocked)
+            {
+                ui?.ShowMissionLockedMessage();
+                return;
+            }
             if (ui != null) ui.HideAll();
             hud()?.SetMissionHudVisible(true);
             IsMissionSelectOpen = false;
             if (tutorial != null) tutorial.Stop();
             FindFirstObjectByType<AstraPlayerController>()?.ResetForMission();
-            game?.BeginMission();
+            game?.BeginMission((AstraMissionId)SelectedMissionIndex);
         }
 
         public bool HandlePracticeInteraction(AstraInteractable facility) => tutorial != null && tutorial.HandlePracticeInteraction(facility);

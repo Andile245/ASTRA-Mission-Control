@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Astra
 {
-    /// <summary>Owns the prototype's simplified resource values and time-step rules.</summary>
+    /// <summary>Owns ASTRA's simplified, game-only resource values and time-step rules.</summary>
     public sealed class AstraResourceManager : MonoBehaviour
     {
         [Header("Game-only reserves (0–100)")]
@@ -17,6 +17,15 @@ namespace Astra
         public float Food => food;
         public float Power => power;
         public float HabitatCondition => habitatCondition;
+
+        public void SetMissionResources(float oxygenValue, float waterValue, float foodValue, float powerValue, float conditionValue)
+        {
+            oxygen = Mathf.Clamp(oxygenValue, 0f, 100f);
+            water = Mathf.Clamp(waterValue, 0f, 100f);
+            food = Mathf.Clamp(foodValue, 0f, 100f);
+            power = Mathf.Clamp(powerValue, 0f, 100f);
+            habitatCondition = Mathf.Clamp(conditionValue, 0f, 100f);
+        }
 
         public string GetWarning()
         {

@@ -18,6 +18,9 @@ namespace Astra
         private Canvas canvas;
         private Font font;
         private Text clockText, statusText, objectiveText, progressText, facilityText, messageText;
+        private Text missionCodeText, missionTitleText, missionDescriptionText;
+        private Text reportTitleText, reportScoreText, reportBodyText, reportLearningText;
+        private Text briefingBodyText;
         private Text oxygenText, waterText, foodText, powerText;
         private Image oxygenFill, waterFill, foodFill, powerFill, progressFill;
         private GameObject introPanel, pausePanel, eventPanel, reportPanel, briefingPanel, facilityPanel, tutorialPanel, resourceAlertPanel;
@@ -29,12 +32,12 @@ namespace Astra
         private static readonly string[] TutorialTitles = { "Move around the outpost.", "Walk up to a facility.", "Watch your resources." };
         private static readonly string[] TutorialBodies = {
             "Use the keys to explore the landing site. Take your time; there is no rush.",
-            "Visit communications, solar power, and life support. When a facility is close, press E to interact.",
+            "Visit communications, solar power, and life support. When a facility is close, press E, gamepad X, or the joystick trigger to interact.",
             "Check oxygen, water, food, and power. Follow the objectives and choose a response when an alert appears."
         };
         private static readonly string[] TutorialKeys = {
-            "W A S D  MOVE     SHIFT  SPRINT     SPACE  HOP",
-            "W A S D  MOVE     E  INTERACT     RIGHT-DRAG  LOOK",
+            "WASD / LEFT STICK MOVE     SHIFT / LB SPRINT     SPACE / A HOP",
+            "E / X INTERACT     MOUSE / RIGHT STICK LOOK",
             "OBJECTIVES     RESOURCE BAR     CHOOSE A RESPONSE"
         };
         private RectTransform root;
@@ -76,8 +79,10 @@ namespace Astra
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            // Design for a 720p reference canvas so text remains readable in a smaller Game view.
-            scaler.referenceResolution = new Vector2(960f, 540f);
+            // Keep the authored 720p layout close to native pixels on common desktop displays.
+            // The previous 960x540 reference scaled every offset and label up too far, so HUD
+            // panels ran into one another on 1080p and wide Game views.
+            scaler.referenceResolution = new Vector2(1280f, 720f);
             scaler.matchWidthOrHeight = 0.5f;
             root = canvasObject.GetComponent<RectTransform>();
 
@@ -101,8 +106,8 @@ namespace Astra
             GameObject bar = Panel("TopBar", root, Navy, new Vector2(0.02f, 1f), new Vector2(0.98f, 1f), new Vector2(0f, -106f), new Vector2(0f, -16f));
             Text brand = TextBlock(bar.transform, "ASTRA  /  MISSION CONTROL", 25, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(brand.rectTransform, new Vector2(0f, 0f), new Vector2(0.34f, 1f), new Vector2(28f, 0f), new Vector2(0f, 0f));
-            Text mission = TextBlock(bar.transform, "ARTEMIS OUTPOST  •  DECK 01", 15, Muted, FontStyle.Normal, TextAnchor.MiddleCenter);
-            SetRect(mission.rectTransform, new Vector2(0.34f, 0f), new Vector2(0.60f, 1f), Vector2.zero, Vector2.zero);
+            missionCodeText = TextBlock(bar.transform, "ARTEMIS OUTPOST  •  MISSION 01", 15, Muted, FontStyle.Normal, TextAnchor.MiddleCenter);
+            SetRect(missionCodeText.rectTransform, new Vector2(0.34f, 0f), new Vector2(0.60f, 1f), Vector2.zero, Vector2.zero);
             clockText = TextBlock(bar.transform, "00:00", 22, Cyan, FontStyle.Bold, TextAnchor.MiddleRight);
             SetRect(clockText.rectTransform, new Vector2(0.86f, 0f), new Vector2(0.98f, 1f), Vector2.zero, new Vector2(-22f, 0f));
 
@@ -149,11 +154,11 @@ namespace Astra
             Text kicker = TextBlock(panel.transform, "MISSION 01   /   ARRIVAL", 13, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(kicker.rectTransform, new Vector2(0f, 0.83f), new Vector2(0.66f, 1f), new Vector2(22f, -4f), Vector2.zero);
             MakeButton(panel.transform, "SCIENCE / DATA  ↗", () => briefingPanel?.SetActive(true), new Vector2(0.65f, 0.86f), new Vector2(0.96f, 0.98f), new Color(0.04f, 0.18f, 0.24f), 11);
-            Text title = TextBlock(panel.transform, "First light", 26, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(title.rectTransform, new Vector2(0f, 0.70f), new Vector2(1f, 0.85f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
-            Text desc = TextBlock(panel.transform, "Bring the outpost online and keep critical systems stable.", 14, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
-            desc.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(desc.rectTransform, new Vector2(0f, 0.55f), new Vector2(1f, 0.72f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
+            missionTitleText = TextBlock(panel.transform, "First Light", 26, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(missionTitleText.rectTransform, new Vector2(0f, 0.70f), new Vector2(1f, 0.85f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
+            missionDescriptionText = TextBlock(panel.transform, "Bring the outpost online and keep critical systems stable.", 14, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            missionDescriptionText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(missionDescriptionText.rectTransform, new Vector2(0f, 0.55f), new Vector2(1f, 0.72f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
             objectiveText = TextBlock(panel.transform, "", 15, Color.white, FontStyle.Normal, TextAnchor.UpperLeft);
             objectiveText.lineSpacing = 1.18f;
             SetRect(objectiveText.rectTransform, new Vector2(0f, 0.13f), new Vector2(1f, 0.54f), new Vector2(22f, -4f), new Vector2(-18f, 0f));
@@ -168,7 +173,7 @@ namespace Astra
         private void BuildBottomBar()
         {
             GameObject bar = Panel("BottomBar", root, new Color(0.025f, 0.055f, 0.10f, 0.85f), new Vector2(0.02f, 0f), new Vector2(0.98f, 0f), new Vector2(0f, 18f), new Vector2(0f, 65f));
-            Text controls = TextBlock(bar.transform, "W A S D  MOVE     SHIFT  SPRINT     SPACE  HOP     E  INTERACT     RIGHT-DRAG  LOOK", 13, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Text controls = TextBlock(bar.transform, "WASD / LEFT STICK MOVE    SHIFT / LB SPRINT    SPACE / A HOP    E / X USE    MOUSE / RIGHT STICK LOOK", 12, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0.82f, 1f), new Vector2(18f, 0f), Vector2.zero);
             Text comms = TextBlock(bar.transform, "COMMS  /  STANDBY", 13, Cyan, FontStyle.Bold, TextAnchor.MiddleRight);
             SetRect(comms.rectTransform, new Vector2(0.82f, 0f), new Vector2(1f, 1f), Vector2.zero, new Vector2(-20f, 0f));
@@ -176,7 +181,7 @@ namespace Astra
 
         private void BuildFacilityPanel()
         {
-            facilityPanel = Panel("FacilityPrompt", root, Navy, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-378f, 82f), new Vector2(350f, 122f));
+            facilityPanel = Panel("FacilityPrompt", root, Navy, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 82f), new Vector2(350f, 122f));
             Text eyebrow = TextBlock(facilityPanel.transform, "FACILITY IN RANGE", 12, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(eyebrow.rectTransform, new Vector2(0f, 0.7f), new Vector2(1f, 1f), new Vector2(18f, 0f), new Vector2(-15f, 0f));
             facilityText = TextBlock(facilityPanel.transform, "", 15, Color.white, FontStyle.Normal, TextAnchor.UpperLeft);
@@ -226,7 +231,7 @@ namespace Astra
             SetRect(description.rectTransform, new Vector2(0.29f, 0.46f), new Vector2(0.71f, 0.60f), Vector2.zero, Vector2.zero);
             MakeButton(introPanel.transform, "SHOW ME HOW TO PLAY", () => ShowTutorialStep(0), new Vector2(0.29f, 0.32f), new Vector2(0.51f, 0.42f), new Color(0.02f, 0.45f, 0.52f), 15);
             MakeButton(introPanel.transform, "I KNOW HOW TO PLAY — SKIP GUIDE", SkipTutorial, new Vector2(0.52f, 0.32f), new Vector2(0.75f, 0.42f), new Color(0.12f, 0.20f, 0.28f), 12);
-            Text note = TextBlock(introPanel.transform, "WASD MOVE  ·  RIGHT MOUSE DRAG LOOK  ·  E INTERACT\nSIMPLIFIED EDUCATIONAL SIMULATION — NOT REAL FLIGHT PROCEDURES", 13, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Text note = TextBlock(introPanel.transform, "KEYBOARD: WASD move · Shift sprint · Space hop · E use · right-drag look\nGAMEPAD: left stick move · right stick look · LB sprint · A hop · X use · Start pause\nJOYSTICK: main stick move · twist look · trigger use", 11, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(note.rectTransform, new Vector2(0.29f, 0.18f), new Vector2(0.71f, 0.28f), Vector2.zero, Vector2.zero);
 
             tutorialPanel = CreateFullscreenDim("QuickPlayGuide");
@@ -256,17 +261,18 @@ namespace Astra
             reportPanel = CreateFullscreenDim("MissionReport");
             Text reportKicker = TextBlock(reportPanel.transform, "ASTRA  /  FLIGHT DEBRIEF", 14, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(reportKicker.rectTransform, new Vector2(0.29f, 0.76f), new Vector2(0.71f, 0.82f), Vector2.zero, Vector2.zero);
-            Text reportTitle = TextBlock(reportPanel.transform, "Mission complete", 38, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(reportTitle.rectTransform, new Vector2(0.29f, 0.65f), new Vector2(0.71f, 0.77f), Vector2.zero, Vector2.zero);
-            Text score = TextBlock(reportPanel.transform, "MISSION SCORE   000", 20, new Color(1f, 0.8f, 0.36f), FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(score.rectTransform, new Vector2(0.29f, 0.54f), new Vector2(0.71f, 0.64f), Vector2.zero, Vector2.zero);
-            Text reportCopy = TextBlock(reportPanel.transform, "", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
-            reportCopy.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(reportCopy.rectTransform, new Vector2(0.29f, 0.34f), new Vector2(0.71f, 0.52f), Vector2.zero, Vector2.zero);
-            Text learning = TextBlock(reportPanel.transform, "WHAT YOU LEARNED\n", 14, Color.white, FontStyle.Bold, TextAnchor.UpperLeft);
-            learning.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(learning.rectTransform, new Vector2(0.29f, 0.20f), new Vector2(0.71f, 0.34f), Vector2.zero, Vector2.zero);
-            MakeButton(reportPanel.transform, "FLY AGAIN    ↻", () => game?.RestartMission(), new Vector2(0.29f, 0.08f), new Vector2(0.50f, 0.16f), new Color(0.02f, 0.45f, 0.52f), 16);
+            reportTitleText = TextBlock(reportPanel.transform, "Mission complete", 38, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(reportTitleText.rectTransform, new Vector2(0.29f, 0.65f), new Vector2(0.71f, 0.77f), Vector2.zero, Vector2.zero);
+            reportScoreText = TextBlock(reportPanel.transform, "MISSION SCORE   000", 20, new Color(1f, 0.8f, 0.36f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(reportScoreText.rectTransform, new Vector2(0.29f, 0.54f), new Vector2(0.71f, 0.64f), Vector2.zero, Vector2.zero);
+            reportBodyText = TextBlock(reportPanel.transform, "", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            reportBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(reportBodyText.rectTransform, new Vector2(0.29f, 0.39f), new Vector2(0.71f, 0.52f), Vector2.zero, Vector2.zero);
+            reportLearningText = TextBlock(reportPanel.transform, "WHAT YOU LEARNED\n", 14, Color.white, FontStyle.Bold, TextAnchor.UpperLeft);
+            reportLearningText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(reportLearningText.rectTransform, new Vector2(0.29f, 0.21f), new Vector2(0.71f, 0.39f), Vector2.zero, Vector2.zero);
+            MakeButton(reportPanel.transform, "REPLAY MISSION    ↻", () => game?.RestartMission(), new Vector2(0.29f, 0.08f), new Vector2(0.49f, 0.16f), new Color(0.02f, 0.45f, 0.52f), 15);
+            MakeButton(reportPanel.transform, "MISSION BOARD", ReturnToMissionBoard, new Vector2(0.51f, 0.08f), new Vector2(0.71f, 0.16f), new Color(0.04f, 0.30f, 0.40f), 15);
             reportPanel.SetActive(false);
             pausePanel.SetActive(false);
         }
@@ -276,14 +282,14 @@ namespace Astra
             briefingPanel = CreateFullscreenDim("BriefingDetails");
             Text title = TextBlock(briefingPanel.transform, "SCIENCE  /  CHALLENGE DATA", 32, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0.28f, 0.65f), new Vector2(0.72f, 0.77f), Vector2.zero, Vector2.zero);
-            Text body = TextBlock(briefingPanel.transform, "This mission teaches the Junior Astronaut Mission Trainer challenge through resource trade-offs. Growing food uses water and power in ASTRA; those costs and the shortened crop time are fictional game values.\n\nThe Canadian Space Agency's youth toolkit explains food production, astronaut nutrition, and activities for learning about food in space. NASA's DONKI database records solar-particle events. DONKI event records are not a radiation dose for this lunar base. RadLab readings are from spacecraft/instruments in different environments and are not a direct lunar surface dose prediction.\n\nASTRA's exposure index, event timing, crop yield, and power costs are invented for gameplay. The outpost and terrain are fictional. The alert is a practice scenario, never a live safety warning.", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
-            body.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(body.rectTransform, new Vector2(0.28f, 0.43f), new Vector2(0.72f, 0.66f), Vector2.zero, Vector2.zero);
+            briefingBodyText = TextBlock(briefingPanel.transform, "Mission learning note appears here.", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            briefingBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(briefingBodyText.rectTransform, new Vector2(0.28f, 0.43f), new Vector2(0.72f, 0.66f), Vector2.zero, Vector2.zero);
             scienceDataText = TextBlock(briefingPanel.transform, "Loading DONKI context…", 15, Cyan, FontStyle.Bold, TextAnchor.UpperLeft);
             scienceDataText.horizontalOverflow = HorizontalWrapMode.Wrap;
             SetRect(scienceDataText.rectTransform, new Vector2(0.28f, 0.34f), new Vector2(0.72f, 0.42f), Vector2.zero, Vector2.zero);
-            MakeButton(briefingPanel.transform, "OPEN NASA DONKI", () => Application.OpenURL("https://ccmc.gsfc.nasa.gov/tools/DONKI/"), new Vector2(0.28f, 0.23f), new Vector2(0.42f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
-            MakeButton(briefingPanel.transform, "OPEN CSA FOOD TOOLKIT", () => Application.OpenURL("https://www.asc-csa.gc.ca/eng/youth-educators/toolkits/food-production/"), new Vector2(0.43f, 0.23f), new Vector2(0.59f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
+            MakeButton(briefingPanel.transform, "OPEN MISSION SOURCE", OpenMissionSource, new Vector2(0.28f, 0.23f), new Vector2(0.46f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
+            MakeButton(briefingPanel.transform, "OPEN CHALLENGE PAGE", () => Application.OpenURL("https://www.spaceappschallenge.org/2026/challenges/junior-astronaut-mission-trainer/?tab=resources"), new Vector2(0.47f, 0.23f), new Vector2(0.64f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
             MakeButton(briefingPanel.transform, "BACK TO MISSION", () => briefingPanel.SetActive(false), new Vector2(0.60f, 0.23f), new Vector2(0.72f, 0.31f), new Color(0.02f, 0.45f, 0.52f), 12);
             MakeButton(briefingPanel.transform, "REPLAY GUIDE", () => ShowTutorialStep(0), new Vector2(0.40f, 0.11f), new Vector2(0.60f, 0.19f), new Color(0.12f, 0.20f, 0.28f), 12);
             briefingPanel.SetActive(false);
@@ -343,7 +349,7 @@ namespace Astra
                 resumeMissionAfterTutorial = false;
                 game?.TogglePause();
             }
-            else game?.BeginMission();
+            else if (game != null) game.BeginMission(game.CurrentMission);
         }
 
         private GameObject CreateFullscreenDim(string name)
@@ -380,8 +386,9 @@ namespace Astra
             Text text = item.GetComponent<Text>();
             text.font = font;
             text.text = content;
-            // Small labels were becoming unreadable after CanvasScaler reduced them in the Game view.
-            text.fontSize = Mathf.Max(size, 17);
+            // Preserve each element's designed hierarchy. A large global minimum made compact
+            // labels expand beyond their slots and overlap neighboring HUD content.
+            text.fontSize = Mathf.Max(size, 15);
             baseTextSizes[text] = text.fontSize;
             text.color = color;
             text.fontStyle = style;
@@ -418,13 +425,26 @@ namespace Astra
         public void Refresh(AstraGameManager state)
         {
             if (state == null || !built) return;
+            int missionNumber = (int)state.CurrentMission + 1;
+            missionCodeText.text = "ARTEMIS OUTPOST  •  MISSION " + missionNumber.ToString("00") + " / " + AstraMissionCatalog.Count.ToString("00");
+            missionTitleText.text = state.MissionDefinition.Title;
+            missionDescriptionText.text = state.MissionDefinition.Subtitle;
             clockText.text = string.Format("{0:00}:{1:00}", Mathf.FloorToInt(state.missionSeconds / 60f), Mathf.FloorToInt(state.missionSeconds % 60f));
             statusText.text = "OUTPOST  /  " + state.GetOutpostStatus() + "   ·   HAB " + Mathf.RoundToInt(state.habitatCondition) + "%";
             UpdateResource(oxygenText, oxygenFill, state.oxygen);
             UpdateResource(waterText, waterFill, state.water);
             UpdateResource(foodText, foodFill, state.food);
             UpdateResource(powerText, powerFill, state.power);
-            if (scienceDataText != null) scienceDataText.text = state.DonkiSummary + "\nASTRA simulated exposure index: " + Mathf.RoundToInt(state.radiationExposureIndex) + "/100 (fictional; not dose).";
+            if (briefingBodyText != null) briefingBodyText.text = state.MissionDefinition.Lesson;
+            if (scienceDataText != null)
+            {
+                if (state.CurrentMission == AstraMissionId.AirAndWater)
+                    scienceDataText.text = "NASA's ISS reference reports about 90% water recovery. This is not a lunar outpost specification; ASTRA values are fictional.";
+                else if (state.CurrentMission == AstraMissionId.FirstLight || state.CurrentMission == AstraMissionId.StormWatch)
+                    scienceDataText.text = state.DonkiSummary + "\nASTRA simulated exposure index: " + Mathf.RoundToInt(state.radiationExposureIndex) + "/100 (fictional; not dose).";
+                else
+                    scienceDataText.text = state.MissionDefinition.SourceLabel + " is the reference for this mission. All local resource amounts are simplified game values.";
+            }
             string resourceWarning = state.Resources != null ? state.Resources.GetWarning() : string.Empty;
             bool showResourceWarning = state.missionStarted && !state.missionFinished && !string.IsNullOrEmpty(resourceWarning);
             resourceAlertPanel.SetActive(showResourceWarning);
@@ -446,13 +466,19 @@ namespace Astra
                 MissionObjective objective = state.Objectives[i];
                 if (objective.complete) complete++;
                 list.Append(objective.complete ? "<color=#5ce3bd>✓</color>  " : "<color=#7e9aad>○</color>  ");
-                list.Append(noRead ? objectiveIcons[Mathf.Min(i, objectiveIcons.Length - 1)] : LanguageManager.Get("objective." + i, objective.title));
+                list.Append(noRead ? objectiveIcons[Mathf.Min(i, objectiveIcons.Length - 1)] : objective.title);
                 if (i < state.Objectives.Count - 1) list.Append('\n');
             }
             objectiveText.supportRichText = true;
             objectiveText.text = list.ToString();
             progressText.text = "MISSION PROGRESS     " + complete + " / " + state.Objectives.Count;
             progressFill.fillAmount = state.Objectives.Count == 0 ? 0f : (float)complete / state.Objectives.Count;
+        }
+
+        private void OpenMissionSource()
+        {
+            if (game != null && !string.IsNullOrEmpty(game.MissionDefinition.SourceUrl))
+                Application.OpenURL(game.MissionDefinition.SourceUrl);
         }
 
         private void UpdateResource(Text value, Image fill, float amount)
@@ -468,7 +494,7 @@ namespace Astra
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
             facilityPanel.SetActive(game != null && game.CanControlPlayer && nearest != null);
             if (nearest != null)
-                facilityText.text = nearest.facilityName + "\n<color=#9db2c3>Press <b>E</b> to interact</color>";
+                facilityText.text = nearest.facilityName + "\n<color=#9db2c3>Press <b>E / X / trigger</b> to interact</color>";
             facilityText.supportRichText = true;
         }
 
@@ -500,17 +526,26 @@ namespace Astra
             if (messageText != null) messageText.gameObject.SetActive(false);
         }
 
-        public void ShowReport(int score, bool success, string learning)
+        public void ShowReport(int score, bool success, string learning, AstraMissionDefinition definition, int bestScore, bool nextUnlocked)
         {
+            reportTitleText.text = success ? definition.Title + " complete" : "Mission ended early";
+            reportScoreText.text = "MISSION SCORE   " + score.ToString("000") + "     ·     BEST " + Mathf.Max(score, bestScore).ToString("000");
+            reportBodyText.text = success
+                ? (nextUnlocked ? "Mission cleared. The next campaign mission is now unlocked." : "Campaign complete. You can replay any mission from the board.")
+                : "Critical reserves were exhausted before this mission's goals were complete. Review your choices and try again.";
+            reportLearningText.text = "WHAT YOU LEARNED\n" + learning;
             reportPanel.SetActive(true);
-            Text[] texts = reportPanel.GetComponentsInChildren<Text>(true);
-            foreach (Text text in texts)
-            {
-                if (text.text == "Mission complete") text.text = success ? "Mission complete" : "Mission ended early";
-                else if (text.text.StartsWith("MISSION SCORE")) text.text = "MISSION SCORE   " + score.ToString("000");
-                else if (text.text.StartsWith("WHAT YOU LEARNED")) text.text = "WHAT YOU LEARNED\n" + learning;
-                else if (text.text == string.Empty) text.text = success ? "You brought the outpost online, responded to the alert, and secured a virtual sample." : "Critical reserves were exhausted before the mission could be completed.";
-            }
+        }
+
+        public void HideReport()
+        {
+            if (reportPanel != null) reportPanel.SetActive(false);
+        }
+
+        private void ReturnToMissionBoard()
+        {
+            reportPanel.SetActive(false);
+            OnboardingManager.Instance?.ShowMissionSelect();
         }
 
         public void SetCursorForMission(bool missionActive)

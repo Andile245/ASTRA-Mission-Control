@@ -31,11 +31,11 @@ namespace Astra
         [SerializeField] private TutorialActivity[] activities =
         {
             new TutorialActivity { titleKey="tutorial.meet.title", bodyKey="tutorial.meet.body", titleFallback="MEET YOUR ASTRONAUT", bodyFallback="This is your astronaut. ASTRO is here beside you. Take your time; you can try anything again.", voiceClip="meet" },
-            new TutorialActivity { titleKey="tutorial.move.title", bodyKey="tutorial.move.body", titleFallback="LEARN TO MOVE", bodyFallback="Press W, A, S or D to walk. Arrow keys work too. Click the ground to walk there.", voiceClip="move" },
-            new TutorialActivity { titleKey="tutorial.look.title", bodyKey="tutorial.look.body", titleFallback="LOOK AROUND", bodyFallback="Hold the right mouse button and move the mouse to look around.", voiceClip="look" },
-            new TutorialActivity { titleKey="tutorial.interact.title", bodyKey="tutorial.interact.body", titleFallback="TRY AN INTERACTION", bodyFallback="Walk to the glowing practice panel. When the arrow points down, press E. Nothing can go wrong here.", voiceClip="interact" },
+            new TutorialActivity { titleKey="tutorial.move.title", bodyKey="tutorial.move.body", titleFallback="LEARN TO MOVE", bodyFallback="Use WASD/arrow keys, a gamepad's left stick, or a joystick's main stick to walk. Click the ground to walk there.", voiceClip="move" },
+            new TutorialActivity { titleKey="tutorial.look.title", bodyKey="tutorial.look.body", titleFallback="LOOK AROUND", bodyFallback="Use right mouse drag, a gamepad's right stick, or a joystick's twist control to look around.", voiceClip="look" },
+            new TutorialActivity { titleKey="tutorial.interact.title", bodyKey="tutorial.interact.body", titleFallback="TRY AN INTERACTION", bodyFallback="Walk to the glowing practice panel. When the arrow points down, press E, gamepad X, or the joystick trigger.", voiceClip="interact" },
             new TutorialActivity { titleKey="tutorial.equipment.title", bodyKey="tutorial.equipment.body", titleFallback="MEET THE EQUIPMENT", bodyFallback="Tap an equipment picture. ASTRO will tell you what it does.", voiceClip="equipment" },
-            new TutorialActivity { titleKey="tutorial.task.title", bodyKey="tutorial.task.body", titleFallback="POWER UP A PRACTICE PANEL", bodyFallback="Follow the arrow to the small practice solar panel and press E. Watch it light up!", voiceClip="practice" }
+            new TutorialActivity { titleKey="tutorial.task.title", bodyKey="tutorial.task.body", titleFallback="POWER UP A PRACTICE PANEL", bodyFallback="Follow the arrow to the small practice solar panel and press E, gamepad X, or the joystick trigger. Watch it light up!", voiceClip="practice" }
         };
 
         private float idleSeconds;

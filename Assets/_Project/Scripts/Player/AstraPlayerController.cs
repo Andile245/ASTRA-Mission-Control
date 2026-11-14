@@ -11,6 +11,7 @@ namespace Astra
         [SerializeField] private float walkSpeed = 4.2f;
         [SerializeField] private float sprintMultiplier = 1.55f;
         [SerializeField] private float mouseSensitivity = 0.12f;
+        [SerializeField] private float gamepadLookSpeed = 150f;
         [SerializeField] private float jumpHeight = 1.4f;
         [SerializeField] private float cameraDistance = 7.2f;
         [SerializeField] private float cameraSmoothTime = 0.08f;
@@ -22,7 +23,6 @@ namespace Astra
         private float yaw;
         private float pitch = 18f;
         private float verticalSpeed;
-        private bool rightDragging;
         private float moveAmount;
         private bool sprinting;
         private Vector3 cameraVelocity;
@@ -49,8 +49,13 @@ namespace Astra
 
         private void Update()
         {
-            if (Keyboard.current == null || Mouse.current == null) return;
-            if (Keyboard.current.escapeKey.wasPressedThisFrame && game != null)
+            Keyboard keyboard = Keyboard.current;
+            Mouse mouse = Mouse.current;
+            Gamepad gamepad = Gamepad.current;
+            Joystick joystick = Joystick.current;
+
+            if ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame ||
+                 gamepad != null && gamepad.startButton.wasPressedThisFrame) && game != null)
                 game.TogglePause();
 
             if (game == null || !game.CanControlPlayer)
@@ -60,33 +65,53 @@ namespace Astra
                 return;
             }
 
-            rightDragging = Mouse.current.rightButton.isPressed;
-            if (rightDragging)
+            if (mouse != null && mouse.rightButton.isPressed)
             {
-                Vector2 delta = Mouse.current.delta.ReadValue();
+                Vector2 delta = mouse.delta.ReadValue();
                 yaw += delta.x * mouseSensitivity;
                 pitch = Mathf.Clamp(pitch - delta.y * mouseSensitivity, 8f, 45f);
                 if (delta.sqrMagnitude > 1f) TutorialManager.Instance?.RecordLook(delta.magnitude);
             }
+            if (gamepad != null)
+            {
+                Vector2 look = gamepad.rightStick.ReadValue();
+                yaw += look.x * gamepadLookSpeed * Time.deltaTime;
+                pitch = Mathf.Clamp(pitch - look.y * gamepadLookSpeed * Time.deltaTime, 8f, 45f);
+                if (look.sqrMagnitude > 0.04f) TutorialManager.Instance?.RecordLook(look.magnitude * gamepadLookSpeed * Time.deltaTime);
+            }
+            else if (joystick != null && joystick.twist != null)
+            {
+                yaw += joystick.twist.ReadValue() * gamepadLookSpeed * Time.deltaTime;
+            }
 
             Vector2 move = Vector2.zero;
             PlayerSettingsManager settings = PlayerSettingsManager.Instance;
-            Key forward = settings != null ? settings.GetKey(AstraBinding.MoveForward) : Key.W;
-            Key back = settings != null ? settings.GetKey(AstraBinding.MoveBack) : Key.S;
-            Key left = settings != null ? settings.GetKey(AstraBinding.MoveLeft) : Key.A;
-            Key right = settings != null ? settings.GetKey(AstraBinding.MoveRight) : Key.D;
-            if (Keyboard.current[forward].isPressed || Keyboard.current.upArrowKey.isPressed) move.y += 1f;
-            if (Keyboard.current[back].isPressed || Keyboard.current.downArrowKey.isPressed) move.y -= 1f;
-            if (Keyboard.current[right].isPressed || Keyboard.current.rightArrowKey.isPressed) move.x += 1f;
-            if (Keyboard.current[left].isPressed || Keyboard.current.leftArrowKey.isPressed) move.x -= 1f;
+            if (keyboard != null)
+            {
+                Key forward = settings != null ? settings.GetKey(AstraBinding.MoveForward) : Key.W;
+                Key back = settings != null ? settings.GetKey(AstraBinding.MoveBack) : Key.S;
+                Key left = settings != null ? settings.GetKey(AstraBinding.MoveLeft) : Key.A;
+                Key right = settings != null ? settings.GetKey(AstraBinding.MoveRight) : Key.D;
+                if (keyboard[forward].isPressed || keyboard.upArrowKey.isPressed) move.y += 1f;
+                if (keyboard[back].isPressed || keyboard.downArrowKey.isPressed) move.y -= 1f;
+                if (keyboard[right].isPressed || keyboard.rightArrowKey.isPressed) move.x += 1f;
+                if (keyboard[left].isPressed || keyboard.leftArrowKey.isPressed) move.x -= 1f;
+            }
+            if (gamepad != null)
+                move += gamepad.leftStick.ReadValue() + gamepad.dpad.ReadValue();
+            if (joystick != null)
+            {
+                move += joystick.stick.ReadValue();
+                if (joystick.hatswitch != null) move += joystick.hatswitch.ReadValue();
+            }
 
-            if (settings != null && settings.ClickToMove && Mouse.current.leftButton.wasPressedThisFrame &&
+            if (settings != null && settings.ClickToMove && mouse != null && mouse.leftButton.wasPressedThisFrame &&
                 (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
             {
                 Camera clickCamera = followCamera != null ? followCamera : Camera.main;
                 if (clickCamera != null)
                 {
-                    Ray clickRay = clickCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
+                    Ray clickRay = clickCamera.ScreenPointToRay(mouse.position.ReadValue());
                     if (Physics.Raycast(clickRay, out RaycastHit groundHit, 240f)) { clickMoveTarget = groundHit.point; hasClickMoveTarget = true; }
                 }
             }
@@ -102,13 +127,17 @@ namespace Astra
 
             Quaternion facing = Quaternion.Euler(0f, yaw, 0f);
             Vector3 direction = facing * new Vector3(move.x, 0f, move.y);
-            sprinting = moveAmount > 0.05f && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+            bool keyboardSprint = keyboard != null && (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
+            bool gamepadSprint = gamepad != null && gamepad.leftShoulder.isPressed;
+            sprinting = moveAmount > 0.05f && (keyboardSprint || gamepadSprint);
             float speed = walkSpeed * (sprinting ? sprintMultiplier : 1f);
 
             if (controller.isGrounded)
             {
                 verticalSpeed = -1.5f;
-                if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                bool keyboardJump = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
+                bool gamepadJump = gamepad != null && gamepad.buttonSouth.wasPressedThisFrame;
+                if (keyboardJump || gamepadJump)
                     verticalSpeed = Mathf.Sqrt(jumpHeight * 2f * LunarGravity);
             }
             else verticalSpeed -= LunarGravity * Time.deltaTime;
@@ -120,7 +149,10 @@ namespace Astra
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), 12f * Time.deltaTime);
 
             Key interact = settings != null ? settings.GetKey(AstraBinding.Interact) : Key.E;
-            if (Keyboard.current[interact].wasPressedThisFrame)
+            bool keyboardInteract = keyboard != null && keyboard[interact].wasPressedThisFrame;
+            bool gamepadInteract = gamepad != null && gamepad.buttonWest.wasPressedThisFrame;
+            bool joystickInteract = joystick != null && joystick.trigger.wasPressedThisFrame;
+            if (keyboardInteract || gamepadInteract || joystickInteract)
                 game.TryInteract(transform.position);
 
         }

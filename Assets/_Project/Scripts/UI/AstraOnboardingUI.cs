@@ -24,6 +24,10 @@ namespace Astra
         private readonly Dictionary<string, Text> settingLabelTexts = new Dictionary<string, Text>();
         private readonly List<Image> cards = new List<Image>();
         private GameObject welcomePanel, settingsPanel, controlsPanel, tutorialPanel, equipmentPanel, completePanel, missionPanel;
+        private readonly Button[] missionButtons = new Button[AstraMissionCatalog.Count];
+        private readonly Text[] missionButtonLabels = new Text[AstraMissionCatalog.Count];
+        private Text missionDetailTitle, missionDetailSummary, missionDetailStatus, missionBriefingText;
+        private Button missionSourceButton, launchSelectedMissionButton;
         private Text welcomeTitle, welcomeBody, setupLabel;
         private Text languageValue, readingValue, assistanceValue, noReadingValue, textSizeValue, subtitlesValue, contrastValue, volumeValue, clickMoveValue;
         private Text controlsStatus;
@@ -61,7 +65,9 @@ namespace Astra
             canvas.sortingOrder = 30;
             CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(960f, 540f);
+            // Match the gameplay HUD's 720p reference so the mission board, settings,
+            // and tutorial keep the same readable size and spacing as the game view.
+            scaler.referenceResolution = new Vector2(1280f, 720f);
             scaler.matchWidthOrHeight = 0.5f;
             Transform root = canvasObject.transform;
 
@@ -133,27 +139,27 @@ namespace Astra
             contrastValue = AddChoiceRow(card.transform, "HIGH CONTRAST", 0.23f, ToggleContrast);
             volumeValue = AddChoiceRow(card.transform, "VOICE VOLUME", 0.155f, () => AdjustVolume(0.1f));
             clickMoveValue = AddChoiceRow(card.transform, "CLICK-TO-WALK", 0.08f, ToggleClickMove);
-            MakeButton(card.transform, "KEYBOARD CONTROLS", () => ShowControls(), new Vector2(0.04f, -0.035f), new Vector2(0.46f, 0.035f), new Color(0.13f, 0.20f, 0.29f), 16);
+            MakeButton(card.transform, "KEYBOARD / GAMEPAD CONTROLS", () => ShowControls(), new Vector2(0.04f, -0.035f), new Vector2(0.46f, 0.035f), new Color(0.13f, 0.20f, 0.29f), 14);
             MakeButton(card.transform, "SAVE AND CONTINUE", () => OnboardingManager.Instance?.CloseSettings(), new Vector2(0.54f, -0.035f), new Vector2(0.96f, 0.035f), Teal, 18);
             UpdateSettingsValues();
         }
 
         private void BuildControls(Transform root)
         {
-            controlsPanel = FullPanel("Keyboard Controls", root, Deep);
+            controlsPanel = FullPanel("Keyboard & Gamepad Controls", root, Deep);
             GameObject card = MakePanel(controlsPanel.transform, Card, new Vector2(0.18f, 0.10f), new Vector2(0.82f, 0.90f));
             cards.Add(card.GetComponent<Image>());
             MakeText(card.transform, "ASTRO  /  CHANGE CONTROLS", 16, Teal, FontStyle.Bold, TextAnchor.MiddleLeft,
                 new Vector2(0.06f, 0.85f), new Vector2(0.94f, 0.96f));
-            MakeText(card.transform, "Choose a control, then press the key you want to use.", 21, White, FontStyle.Bold, TextAnchor.MiddleLeft,
-                new Vector2(0.06f, 0.75f), new Vector2(0.94f, 0.86f));
+            MakeText(card.transform, "Change keyboard keys below. Gamepad and joystick controls work automatically.\nGamepad: LS move · RS look · LB sprint · A hop · X use · Start pause.\nJoystick: main stick move · twist look · trigger use.", 16, White, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.70f), new Vector2(0.94f, 0.86f));
             controlsStatus = MakeText(card.transform, "W A S D and E are ready.", 17, Gold, FontStyle.Bold, TextAnchor.MiddleCenter,
                 new Vector2(0.06f, 0.07f), new Vector2(0.94f, 0.17f));
-            AddBindingRow(card.transform, "WALK FORWARD", AstraBinding.MoveForward, 0.65f);
-            AddBindingRow(card.transform, "WALK BACK", AstraBinding.MoveBack, 0.53f);
-            AddBindingRow(card.transform, "WALK LEFT", AstraBinding.MoveLeft, 0.41f);
+            AddBindingRow(card.transform, "WALK FORWARD", AstraBinding.MoveForward, 0.62f);
+            AddBindingRow(card.transform, "WALK BACK", AstraBinding.MoveBack, 0.51f);
+            AddBindingRow(card.transform, "WALK LEFT", AstraBinding.MoveLeft, 0.40f);
             AddBindingRow(card.transform, "WALK RIGHT", AstraBinding.MoveRight, 0.29f);
-            AddBindingRow(card.transform, "USE / INTERACT", AstraBinding.Interact, 0.17f);
+            AddBindingRow(card.transform, "USE / INTERACT", AstraBinding.Interact, 0.18f);
             MakeButton(card.transform, "BACK TO ACCESSIBILITY", () => ShowSettings(settingsReturn), new Vector2(0.60f, 0.01f), new Vector2(0.94f, 0.10f), Blue, 15);
         }
 
@@ -221,21 +227,50 @@ namespace Astra
         {
             missionPanel = FullPanel("Mission Selection", root, Deep);
             MakeText(missionPanel.transform, "ASTRA  /  MISSION CONTROL", 17, Teal, FontStyle.Bold, TextAnchor.MiddleLeft,
-                new Vector2(0.12f, 0.84f), new Vector2(0.88f, 0.92f));
-            MakeText(missionPanel.transform, "MISSION SELECT", 43, White, FontStyle.Bold, TextAnchor.MiddleLeft,
-                new Vector2(0.12f, 0.72f), new Vector2(0.88f, 0.83f));
-            GameObject card = MakePanel(missionPanel.transform, Card, new Vector2(0.12f, 0.32f), new Vector2(0.88f, 0.68f));
-            cards.Add(card.GetComponent<Image>());
-            MakeText(card.transform, "01", 62, Gold, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0.04f, 0.19f), new Vector2(0.20f, 0.81f));
-            MakeText(card.transform, "FIRST LIGHT", 30, White, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(0.23f, 0.55f), new Vector2(0.92f, 0.84f));
-            MakeText(card.transform, "Bring the lunar outpost online. ASTRO can guide you or let you explore.", 19, Soft, FontStyle.Normal, TextAnchor.UpperLeft,
-                new Vector2(0.23f, 0.25f), new Vector2(0.90f, 0.55f));
+                new Vector2(0.10f, 0.87f), new Vector2(0.90f, 0.94f));
+            MakeText(missionPanel.transform, "MISSION BOARD", 38, White, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.10f, 0.76f), new Vector2(0.90f, 0.86f));
+
+            GameObject listPanel = MakePanel(missionPanel.transform, Card, new Vector2(0.10f, 0.24f), new Vector2(0.39f, 0.72f));
+            cards.Add(listPanel.GetComponent<Image>());
+            MakeText(listPanel.transform, "CAMPAIGN MISSIONS", 13, Teal, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.04f, 0.86f), new Vector2(0.96f, 0.98f));
+            string[] shortTitles = { "FIRST LIGHT", "AIR & WATER", "SHADOW SCOUT", "STORM WATCH", "FOOD FOR THE LONG STAY" };
+            for (int i = 0; i < AstraMissionCatalog.Count; i++)
+            {
+                float top = 0.82f - i * 0.16f;
+                float bottom = top - 0.135f;
+                int index = i;
+                missionButtons[i] = MakeButton(listPanel.transform, "", () => OnboardingManager.Instance?.SelectMission(index),
+                    new Vector2(0.035f, bottom), new Vector2(0.965f, top), new Color(0.07f, 0.15f, 0.23f), 14);
+                missionButtonLabels[i] = missionButtons[i].GetComponentInChildren<Text>();
+                missionButtonLabels[i].alignment = TextAnchor.MiddleLeft;
+            }
+
+            GameObject detailPanel = MakePanel(missionPanel.transform, Card, new Vector2(0.42f, 0.24f), new Vector2(0.90f, 0.72f));
+            cards.Add(detailPanel.GetComponent<Image>());
+            missionDetailTitle = MakeText(detailPanel.transform, "FIRST LIGHT", 25, White, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.79f), new Vector2(0.94f, 0.96f));
+            missionDetailSummary = MakeText(detailPanel.transform, "", 16, Soft, FontStyle.Normal, TextAnchor.UpperLeft,
+                new Vector2(0.06f, 0.53f), new Vector2(0.94f, 0.78f));
+            missionDetailStatus = MakeText(detailPanel.transform, "", 13, Gold, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.43f), new Vector2(0.94f, 0.53f));
+            Text briefing = MakeText(detailPanel.transform, "MISSION BRIEFING", 12, Teal, FontStyle.Bold, TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.35f), new Vector2(0.94f, 0.44f));
+            briefing.name = "MissionBriefingLabel";
+            missionBriefingText = MakeText(detailPanel.transform, "", 14, Soft, FontStyle.Normal, TextAnchor.UpperLeft,
+                new Vector2(0.06f, 0.15f), new Vector2(0.94f, 0.36f));
+            missionBriefingText.name = "MissionBriefingBody";
+            missionBriefingText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            missionSourceButton = MakeButton(detailPanel.transform, "LEARN MORE  ↗", () => OpenSelectedMissionSource(),
+                new Vector2(0.06f, 0.045f), new Vector2(0.94f, 0.14f), new Color(0.04f, 0.30f, 0.40f), 12);
+
             MakeButton(missionPanel.transform, "PRACTISE WITH ASTRO", () => OnboardingManager.Instance?.ReplayTutorial(),
-                new Vector2(0.12f, 0.15f), new Vector2(0.39f, 0.25f), new Color(0.13f, 0.20f, 0.29f), 16);
+                new Vector2(0.10f, 0.08f), new Vector2(0.34f, 0.19f), new Color(0.13f, 0.20f, 0.29f), 14);
             MakeButton(missionPanel.transform, "ACCESSIBILITY SETTINGS", () => OnboardingManager.Instance?.OpenSettings(),
-                new Vector2(0.41f, 0.15f), new Vector2(0.70f, 0.25f), Blue, 16);
-            MakeButton(missionPanel.transform, "LAUNCH FIRST LIGHT", () => OnboardingManager.Instance?.LaunchMission(),
-                new Vector2(0.72f, 0.15f), new Vector2(0.94f, 0.25f), Teal, 17);
+                new Vector2(0.36f, 0.08f), new Vector2(0.62f, 0.19f), Blue, 14);
+            launchSelectedMissionButton = MakeButton(missionPanel.transform, "LAUNCH MISSION", () => OnboardingManager.Instance?.LaunchMission(),
+                new Vector2(0.64f, 0.08f), new Vector2(0.90f, 0.19f), Teal, 16);
         }
 
         private Text AddChoiceRow(Transform parent, string label, float y, Action action)
@@ -387,8 +422,58 @@ namespace Astra
 
         public void ShowMissionSelect()
         {
+            int selected = OnboardingManager.Instance != null ? OnboardingManager.Instance.SelectedMissionIndex : 0;
+            ShowMissionSelect(selected, AstraCampaignProgress.HighestUnlocked);
+        }
+
+        public void ShowMissionSelect(int selectedIndex, int highestUnlocked)
+        {
             CurrentScreen = "mission"; HideAll(); missionPanel.SetActive(true);
             UpdateMissionCaptions();
+            UpdateMissionSelection(selectedIndex, highestUnlocked);
+        }
+
+        public void UpdateMissionSelection(int selectedIndex, int highestUnlocked)
+        {
+            selectedIndex = Mathf.Clamp(selectedIndex, 0, AstraMissionCatalog.Count - 1);
+            AstraMissionDefinition mission = AstraMissionCatalog.Get(selectedIndex);
+            missionDetailTitle.text = (selectedIndex + 1).ToString("00") + "  /  " + mission.Title.ToUpperInvariant();
+            missionDetailSummary.text = mission.Subtitle;
+            missionBriefingText.text = mission.Briefing;
+            int best = AstraCampaignProgress.BestScore(mission.Id);
+            bool unlocked = selectedIndex <= highestUnlocked;
+            missionDetailStatus.text = unlocked
+                ? (best > 0 ? "UNLOCKED   ·   PERSONAL BEST " + best.ToString("000") : "UNLOCKED   ·   NO SCORE YET")
+                : "LOCKED   ·   COMPLETE MISSION " + selectedIndex.ToString("00") + " TO UNLOCK";
+            missionSourceButton.GetComponentInChildren<Text>().text = "LEARN MORE  ·  " + mission.SourceLabel.ToUpperInvariant() + "  ↗";
+            missionBriefingUrl = mission.SourceUrl;
+            launchSelectedMissionButton.interactable = unlocked;
+            Text launchLabel = launchSelectedMissionButton.GetComponentInChildren<Text>();
+            launchLabel.text = unlocked ? "LAUNCH " + mission.Title.ToUpperInvariant() : "MISSION LOCKED";
+
+            for (int i = 0; i < missionButtons.Length; i++)
+            {
+                bool selected = i == selectedIndex;
+                bool itemUnlocked = i <= highestUnlocked;
+                missionButtonLabels[i].text = (i + 1).ToString("00") + "   " + new[] { "FIRST LIGHT", "AIR & WATER", "SHADOW SCOUT", "STORM WATCH", "FOOD FOR THE LONG STAY" }[i] + (itemUnlocked ? "" : "   ·   LOCKED");
+            missionButtonLabels[i].color = itemUnlocked ? White : Soft;
+                ColorBlock colors = missionButtons[i].colors;
+                colors.normalColor = selected ? new Color(0.04f, 0.38f, 0.46f) : new Color(0.07f, 0.15f, 0.23f);
+                colors.highlightedColor = Color.Lerp(colors.normalColor, Color.white, 0.18f);
+                missionButtons[i].colors = colors;
+            }
+        }
+
+        private string missionBriefingUrl;
+
+        private void OpenSelectedMissionSource()
+        {
+            if (!string.IsNullOrEmpty(missionBriefingUrl)) Application.OpenURL(missionBriefingUrl);
+        }
+
+        public void ShowMissionLockedMessage()
+        {
+            missionDetailStatus.text = "LOCKED   ·   COMPLETE EARLIER MISSIONS TO CONTINUE";
         }
 
         public void HideAll()

@@ -8,11 +8,12 @@ using UnityEngine;
 /// <summary>Builds the configured ASTRA scene into its Windows player folder.</summary>
 public static class AstraWindowsBuild
 {
-    private const string OutputPath = "Builds/Windows/com.unity.template.urp-blank.exe";
+    private const string OutputPath = "Builds/Windows/ASTRA-Mission-Control-v2.exe";
 
     [MenuItem("ASTRA/Build Windows Player")]
     public static void Build()
     {
+        PlayerSettings.productName = "ASTRA Junior Astronaut Trainer";
         string[] scenes = EditorBuildSettings.scenes
             .Where(scene => scene.enabled)
             .Select(scene => scene.path)
