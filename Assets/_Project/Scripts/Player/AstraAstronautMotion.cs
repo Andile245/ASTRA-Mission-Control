@@ -18,6 +18,9 @@ namespace Astra
         private Quaternion rightLegRest;
         private Vector3 modelRestPosition;
         private float animationClock;
+        private bool working;
+
+        public void SetWorkingMotion(bool value) => working = value;
 
         private void Awake()
         {
@@ -32,6 +35,17 @@ namespace Astra
         private void Update()
         {
             if (player == null) return;
+
+            if (working)
+            {
+                float work = Mathf.Sin(Time.time * 7f) * 9f;
+                if (leftArmPivot != null) leftArmPivot.localRotation = leftArmRest * Quaternion.Euler(-58f + work, 0f, -12f);
+                if (rightArmPivot != null) rightArmPivot.localRotation = rightArmRest * Quaternion.Euler(-68f - work, 0f, 12f);
+                if (leftLegPivot != null) leftLegPivot.localRotation = leftLegRest;
+                if (rightLegPivot != null) rightLegPivot.localRotation = rightLegRest;
+                if (modelRoot != null) modelRoot.localPosition = modelRestPosition + Vector3.up * Mathf.Sin(Time.time * 7f) * 0.012f;
+                return;
+            }
 
             float move = player.MoveAmount;
             bool airborne = !player.IsGrounded;

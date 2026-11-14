@@ -28,15 +28,20 @@ namespace Astra
         private Vector3 cameraVelocity;
         private Vector3 clickMoveTarget;
         private bool hasClickMoveTarget;
+        private AstraRoverDrive mountedRover;
+        private Renderer[] astronautRenderers;
 
         public float MoveAmount => moveAmount;
         public bool IsSprinting => sprinting;
         public bool IsGrounded => controller != null && controller.isGrounded;
         public float VerticalSpeed => verticalSpeed;
+        public bool IsMountedInRover => mountedRover != null && mountedRover.IsDriving;
+        public AstraRoverDrive MountedRover => mountedRover;
 
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            astronautRenderers = GetComponentsInChildren<Renderer>(true);
             followCamera = Camera.main;
             game = FindFirstObjectByType<AstraGameManager>();
             if (cameraTarget == null) cameraTarget = transform;
@@ -82,6 +87,14 @@ namespace Astra
             else if (joystick != null && joystick.twist != null)
             {
                 yaw += joystick.twist.ReadValue() * gamepadLookSpeed * Time.deltaTime;
+            }
+
+            if (IsMountedInRover)
+            {
+                transform.position = mountedRover.transform.position;
+                moveAmount = 0f;
+                sprinting = false;
+                return;
             }
 
             Vector2 move = Vector2.zero;
@@ -181,6 +194,7 @@ namespace Astra
                 foreach (RaycastHit hit in hits)
                 {
                     if (hit.transform == transform || hit.transform.IsChildOf(transform)) continue;
+                    if (IsMountedInRover && (hit.transform == mountedRover.transform || hit.transform.IsChildOf(mountedRover.transform))) continue;
                     if (hit.distance < nearestBlockDistance) nearestBlockDistance = hit.distance;
                 }
                 if (nearestBlockDistance < travelDistance)
@@ -218,6 +232,7 @@ namespace Astra
 
         public void ResetForMission()
         {
+            if (mountedRover != null) mountedRover.ForceEndDrive();
             hasClickMoveTarget = false;
             verticalSpeed = 0f;
             controller.enabled = false;
@@ -227,6 +242,32 @@ namespace Astra
             cameraVelocity = Vector3.zero;
             yaw = 0f;
             pitch = 18f;
+        }
+
+        public void MountRover(AstraRoverDrive rover)
+        {
+            if (rover == null) return;
+            mountedRover = rover;
+            controller.enabled = false;
+            transform.position = rover.transform.position;
+            transform.rotation = rover.transform.rotation;
+            yaw = rover.transform.eulerAngles.y;
+            foreach (Renderer item in astronautRenderers)
+                if (item != null) item.enabled = false;
+            moveAmount = 0f;
+            sprinting = false;
+        }
+
+        public void DismountRover(AstraRoverDrive rover)
+        {
+            if (mountedRover != rover) return;
+            transform.position = rover.transform.position - rover.transform.forward * 2.3f;
+            transform.rotation = rover.transform.rotation;
+            mountedRover = null;
+            controller.enabled = true;
+            foreach (Renderer item in astronautRenderers)
+                if (item != null) item.enabled = true;
+            verticalSpeed = 0f;
         }
     }
 }

@@ -73,12 +73,62 @@ namespace Astra
                 case 0: type = FacilityType.Communications; break;
                 case 1: type = FacilityType.SolarArray; break;
                 case 2: type = FacilityType.LifeSupport; break;
-                case 3: type = FacilityType.Habitat; break;
+                case 3: type = FacilityType.RadiationShelter; break;
+                case 4: type = FacilityType.Greenhouse; break;
                 default: type = FacilityType.Rover; break;
             }
             foreach (AstraInteractable item in FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
                 if (item.facilityType == type && !item.facilityName.Contains("Practice")) return item.transform;
             return null;
+        }
+
+        public void RefreshMissionTarget(AstraGameManager game)
+        {
+            if (game == null || !game.missionStarted || game.missionFinished)
+            {
+                SetTarget(null);
+                return;
+            }
+
+            foreach (MissionObjective objective in game.Objectives)
+            {
+                if (objective.complete) continue;
+                FacilityType type;
+                switch (objective.id)
+                {
+                    case AstraObjectiveId.Communications: type = FacilityType.Communications; break;
+                    case AstraObjectiveId.Solar: type = FacilityType.SolarArray; break;
+                    case AstraObjectiveId.LifeSupport: type = FacilityType.LifeSupport; break;
+                    case AstraObjectiveId.Shelter: type = FacilityType.RadiationShelter; break;
+                    case AstraObjectiveId.CropHarvest: type = FacilityType.Greenhouse; break;
+                    case AstraObjectiveId.RoverSample: type = FacilityType.Rover; break;
+                    case AstraObjectiveId.OxygenRestored: type = FacilityType.OxygenProcessor; break;
+                    case AstraObjectiveId.WaterRestored: type = FacilityType.WaterRecycler; break;
+                    case AstraObjectiveId.WeatherReportReviewed: type = FacilityType.SpaceWeatherStation; break;
+                    case AstraObjectiveId.ProtectedAreaReadiness:
+                        SetTarget(game.GetStormReadinessTarget());
+                        return;
+                    case AstraObjectiveId.PostDrillInspection:
+                        SetTarget(game.GetStormInspectionTarget());
+                        return;
+                    case AstraObjectiveId.StormResponse:
+                        if (game.CurrentMission == AstraMissionId.StormWatch) type = FacilityType.RadiationShelter;
+                        else { SetTarget(null); return; }
+                        break;
+                    default: continue;
+                }
+
+                foreach (AstraInteractable facility in FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
+                {
+                    if (facility.facilityType != type || facility.facilityName.Contains("Practice")) continue;
+                    SetTarget(facility.transform);
+                    return;
+                }
+
+                SetTarget(null);
+                return;
+            }
+            SetTarget(null);
         }
 
         public void ShowCompletion()

@@ -6,14 +6,25 @@ ASTRA is a playable Unity 6.6 URP prototype for the NASA Space Apps Challenge Ju
 
 Open `Prototype/index.html` in a browser for the offline isometric demo. It has the same first-mission loop and runs without a server or downloads. At the welcome screen, choose **Show me how to play** for the optional three-step guide or **I know how to play — skip guide** to start directly. The guide can be replayed from the mission briefing. The Unity welcome screen offers the same guide-or-skip choice. The Unity project and scene builder are under the project root.
 
-## First playable loop
+## Campaign
 
-- Explore a stylized 3D lunar outpost in third person.
-- Activate communications and a solar array, inspect life support, prepare a radiation shelter, grow/harvest food, respond to a practice solar-particle alert, and collect a virtual sample with the rover.
+The current campaign order is **Moon First Light → Moon Greenhouse → Mars Storm Watch → Europa Shadow Scout**. Air and water recovery are part of First Light; the greenhouse and visible crop harvest have their own Moon mission. Completing each mission unlocks the next campaign slot. After the Moon Greenhouse and Mars missions, the debrief offers a timed spacecraft repair and launch to the next destination. Mars and Europa stay locked on the mission board until the ship is repaired and the launch is completed.
+
+The same outpost simulation changes its terrain color, sky body, and lighting to distinguish the Moon, Mars, and Europa visits. These destination environments, facilities, rover routes, and samples are simplified fictional scenes rather than mapped landing sites.
+
+Mission 03, **Storm Watch: Protect the Crew**, is an activity and inspection drill rather than a repair checklist. Astronauts review the latest available DONKI SEP record (or a labeled fictional fallback), check the protected-area systems, suspend a scheduled rover traverse, remain in the shelter through a short simulated event, inspect five outpost systems, then submit the report at the monitoring station.
+
+## Mission loop
+
+- Explore the current planetary outpost in third person.
+- Carry out the mission activities at each station: choose a solar-array strategy, operate water and oxygen recovery, manage crop cycles, complete the Mars shelter drill and inspection, and plan rover surveys.
 - Monitor oxygen, water, food, power, and habitat condition.
 - Balance power, water, greenhouse food production, and sheltering costs. Review the live NASA DONKI SEP event context (when online), then see the simulation limits and challenge sources in the science briefing and debrief.
+- Mission operations use direct interactions and choices; timed tool maintenance is reserved for actual repair work and ship launch repairs. The First Light solar activity compares fictional operating strategies, the greenhouse lets players choose crop/resource trade-offs and observe a timed growth cycle, and rover missions include driving and sample classification. The Europa exercise also teaches that a surface sample cannot establish the composition of a subsurface ocean.
+- When a facility actually needs repair, the 10-second, three-step maintenance sequence uses visible spanner and screwdriver models with generated mechanical sounds. The blue bar counts down from full to empty, and players can press E / X or use CONTINUE at each checkpoint. Completed repairs visibly restore facility lights and equipment.
+- Interplanetary ship repairs use the same timed, tool-visible maintenance sequence. Launch repairs are started from the successful mission debrief.
 
-Controls: **WASD** move, **Shift** sprint, **Space** hop, **right mouse drag** look, **E** interact, **Escape** pause. Walk up to the cyan/green/orange facility beacons until the interaction card appears.
+Controls: **WASD** move, **Shift** sprint, **Space** hop, **right mouse drag** look, **E** interact, **Escape** pause. During rover operations, **W/S** drive, **A/D** steer, **E** collect the sample at the beacon, and **Q** exit the rover. Walk up to the cyan/green/orange facility beacons until the interaction card appears.
 
 All resource values and event outcomes are invented game rules for learning. The outpost, terrain, and event are fictional and are not real astronaut procedures. See [NASA science notes](Docs/SCIENCE-SOURCES.md) for the source material and limits.
 

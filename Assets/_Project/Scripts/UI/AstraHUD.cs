@@ -20,10 +20,15 @@ namespace Astra
         private Text clockText, statusText, objectiveText, progressText, facilityText, messageText;
         private Text missionCodeText, missionTitleText, missionDescriptionText;
         private Text reportTitleText, reportScoreText, reportBodyText, reportLearningText;
+        private Button launchDestinationButton;
         private Text briefingBodyText;
         private Text oxygenText, waterText, foodText, powerText;
         private Image oxygenFill, waterFill, foodFill, powerFill, progressFill;
         private GameObject introPanel, pausePanel, eventPanel, reportPanel, briefingPanel, facilityPanel, tutorialPanel, resourceAlertPanel;
+        private GameObject stormPanel;
+        private Button eventPrimaryButton, eventSecondaryButton, stormActionButton, stormLinkButton;
+        private Text stormTitleText, stormBodyText;
+        private bool stormPanelShowsDonki;
         private Text resourceAlertText;
         private Text tutorialTitleText, tutorialBodyText, tutorialCounterText, tutorialKeysText;
         private Text scienceDataText, eventCopyText;
@@ -96,6 +101,7 @@ namespace Astra
             BuildFacilityPanel();
             BuildMessages();
             BuildEventPanel();
+            BuildStormPanel();
             BuildOverlayPanels();
             BuildBriefingPanel();
             introPanel.SetActive(false);
@@ -106,7 +112,7 @@ namespace Astra
             GameObject bar = Panel("TopBar", root, Navy, new Vector2(0.02f, 1f), new Vector2(0.98f, 1f), new Vector2(0f, -106f), new Vector2(0f, -16f));
             Text brand = TextBlock(bar.transform, "ASTRA  /  MISSION CONTROL", 25, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(brand.rectTransform, new Vector2(0f, 0f), new Vector2(0.34f, 1f), new Vector2(28f, 0f), new Vector2(0f, 0f));
-            missionCodeText = TextBlock(bar.transform, "ARTEMIS OUTPOST  •  MISSION 01", 15, Muted, FontStyle.Normal, TextAnchor.MiddleCenter);
+            missionCodeText = TextBlock(bar.transform, "MOON OUTPOST  •  MISSION 01", 15, Muted, FontStyle.Normal, TextAnchor.MiddleCenter);
             SetRect(missionCodeText.rectTransform, new Vector2(0.34f, 0f), new Vector2(0.60f, 1f), Vector2.zero, Vector2.zero);
             clockText = TextBlock(bar.transform, "00:00", 22, Cyan, FontStyle.Bold, TextAnchor.MiddleRight);
             SetRect(clockText.rectTransform, new Vector2(0.86f, 0f), new Vector2(0.98f, 1f), Vector2.zero, new Vector2(-22f, 0f));
@@ -206,16 +212,35 @@ namespace Astra
             SetRect(kicker.rectTransform, new Vector2(0f, 0.82f), new Vector2(1f, 1f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
             Text title = TextBlock(eventPanel.transform, "Prepare for a solar-particle event", 29, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0f, 0.69f), new Vector2(1f, 0.85f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
-            eventCopyText = TextBlock(eventPanel.transform, "This is a practice scenario, not a live warning. DONKI records solar events; it does not give this lunar outpost's radiation dose.", 16, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            eventCopyText = TextBlock(eventPanel.transform, "This is a practice scenario, not a live warning. DONKI records solar events; it does not give a Mars surface dose or crew-health forecast.", 16, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
             eventCopyText.horizontalOverflow = HorizontalWrapMode.Wrap;
             SetRect(eventCopyText.rectTransform, new Vector2(0f, 0.48f), new Vector2(1f, 0.68f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
-            MakeButton(eventPanel.transform, "SHELTER CREW  ·  SPEND POWER, LOWER SIMULATED EXPOSURE", () => game?.ResolveRadiationDrill(true),
+            eventPrimaryButton = MakeButton(eventPanel.transform, "SHELTER CREW  ·  SPEND POWER, LOWER SIMULATED EXPOSURE", () => game?.ResolveRadiationDrill(true),
                 new Vector2(0.06f, 0.29f), new Vector2(0.94f, 0.43f), new Color(0.03f, 0.42f, 0.47f), 14);
-            MakeButton(eventPanel.transform, "KEEP OUTSIDE OPERATIONS  ·  KEEP POWER, ACCEPT MORE RISK", () => game?.ResolveRadiationDrill(false),
+            eventSecondaryButton = MakeButton(eventPanel.transform, "KEEP OUTSIDE OPERATIONS  ·  KEEP POWER, ACCEPT MORE RISK", () => game?.ResolveRadiationDrill(false),
                 new Vector2(0.06f, 0.12f), new Vector2(0.94f, 0.26f), new Color(0.15f, 0.21f, 0.29f), 14);
             Text note = TextBlock(eventPanel.transform, "FICTIONAL EXPOSURE INDEX  ·  NOT A DOSE OR MEDICAL MEASUREMENT", 11, Muted, FontStyle.Bold, TextAnchor.MiddleCenter);
             SetRect(note.rectTransform, new Vector2(0f, 0.015f), new Vector2(1f, 0.10f), Vector2.zero, Vector2.zero);
             eventPanel.SetActive(false);
+        }
+
+        private void BuildStormPanel()
+        {
+            stormPanel = Panel("StormWatchBriefingAndReport", root, new Color(0.025f, 0.055f, 0.10f, 0.98f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 520f));
+            stormTitleText = TextBlock(stormPanel.transform, "SPACE-WEATHER REPORT", 28, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(stormTitleText.rectTransform, new Vector2(0.06f, 0.82f), new Vector2(0.94f, 0.96f), Vector2.zero, Vector2.zero);
+            stormBodyText = TextBlock(stormPanel.transform, "Loading event information…", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            stormBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            stormBodyText.verticalOverflow = VerticalWrapMode.Truncate;
+            SetRect(stormBodyText.rectTransform, new Vector2(0.07f, 0.29f), new Vector2(0.93f, 0.81f), Vector2.zero, Vector2.zero);
+            stormLinkButton = MakeButton(stormPanel.transform, "OPEN NASA DONKI EVENT", () => { },
+                new Vector2(0.12f, 0.17f), new Vector2(0.45f, 0.25f), new Color(0.06f, 0.23f, 0.34f), 13);
+            stormActionButton = MakeButton(stormPanel.transform, "I HAVE REVIEWED THIS REPORT", () => { },
+                new Vector2(0.53f, 0.17f), new Vector2(0.88f, 0.25f), new Color(0.03f, 0.42f, 0.47f), 13);
+            MakeButton(stormPanel.transform, "CLOSE", HideStormPanel,
+                new Vector2(0.40f, 0.055f), new Vector2(0.60f, 0.13f), new Color(0.15f, 0.21f, 0.29f), 13);
+            stormPanel.SetActive(false);
         }
 
         private void BuildOverlayPanels()
@@ -271,8 +296,10 @@ namespace Astra
             reportLearningText = TextBlock(reportPanel.transform, "WHAT YOU LEARNED\n", 14, Color.white, FontStyle.Bold, TextAnchor.UpperLeft);
             reportLearningText.horizontalOverflow = HorizontalWrapMode.Wrap;
             SetRect(reportLearningText.rectTransform, new Vector2(0.29f, 0.21f), new Vector2(0.71f, 0.39f), Vector2.zero, Vector2.zero);
-            MakeButton(reportPanel.transform, "REPLAY MISSION    ↻", () => game?.RestartMission(), new Vector2(0.29f, 0.08f), new Vector2(0.49f, 0.16f), new Color(0.02f, 0.45f, 0.52f), 15);
-            MakeButton(reportPanel.transform, "MISSION BOARD", ReturnToMissionBoard, new Vector2(0.51f, 0.08f), new Vector2(0.71f, 0.16f), new Color(0.04f, 0.30f, 0.40f), 15);
+            launchDestinationButton = MakeButton(reportPanel.transform, "REPAIR SHIP & LAUNCH", () => game?.StartNextDestinationLaunch(), new Vector2(0.29f, 0.08f), new Vector2(0.71f, 0.16f), new Color(0.58f, 0.29f, 0.08f), 16);
+            MakeButton(reportPanel.transform, "REPLAY", () => game?.RestartMission(), new Vector2(0.34f, 0.015f), new Vector2(0.49f, 0.07f), new Color(0.02f, 0.45f, 0.52f), 13);
+            MakeButton(reportPanel.transform, "MISSION BOARD", ReturnToMissionBoard, new Vector2(0.51f, 0.015f), new Vector2(0.66f, 0.07f), new Color(0.04f, 0.30f, 0.40f), 13);
+            launchDestinationButton.gameObject.SetActive(false);
             reportPanel.SetActive(false);
             pausePanel.SetActive(false);
         }
@@ -399,7 +426,7 @@ namespace Astra
             return text;
         }
 
-        private void MakeButton(Transform parent, string caption, Action action, Vector2 anchorMin, Vector2 anchorMax, Color color, int size)
+        private Button MakeButton(Transform parent, string caption, Action action, Vector2 anchorMin, Vector2 anchorMax, Color color, int size)
         {
             GameObject buttonObject = Panel("Button_" + caption, parent, color, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
             Button button = buttonObject.AddComponent<Button>();
@@ -412,6 +439,7 @@ namespace Astra
             button.onClick.AddListener(() => action?.Invoke());
             Text text = TextBlock(buttonObject.transform, caption, size, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(10f, 2f), new Vector2(-10f, -2f));
+            return button;
         }
 
         private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
@@ -426,7 +454,7 @@ namespace Astra
         {
             if (state == null || !built) return;
             int missionNumber = (int)state.CurrentMission + 1;
-            missionCodeText.text = "ARTEMIS OUTPOST  •  MISSION " + missionNumber.ToString("00") + " / " + AstraMissionCatalog.Count.ToString("00");
+            missionCodeText.text = AstraMissionCatalog.DestinationName(state.MissionDefinition.Destination) + " OUTPOST  •  MISSION " + missionNumber.ToString("00") + " / " + AstraMissionCatalog.Count.ToString("00");
             missionTitleText.text = state.MissionDefinition.Title;
             missionDescriptionText.text = state.MissionDefinition.Subtitle;
             clockText.text = string.Format("{0:00}:{1:00}", Mathf.FloorToInt(state.missionSeconds / 60f), Mathf.FloorToInt(state.missionSeconds % 60f));
@@ -438,9 +466,9 @@ namespace Astra
             if (briefingBodyText != null) briefingBodyText.text = state.MissionDefinition.Lesson;
             if (scienceDataText != null)
             {
-                if (state.CurrentMission == AstraMissionId.AirAndWater)
-                    scienceDataText.text = "NASA's ISS reference reports about 90% water recovery. This is not a lunar outpost specification; ASTRA values are fictional.";
-                else if (state.CurrentMission == AstraMissionId.FirstLight || state.CurrentMission == AstraMissionId.StormWatch)
+                if (state.CurrentMission == AstraMissionId.FirstLight)
+                    scienceDataText.text = "NASA's ISS reference reports about 90% water recovery. This is not a lunar outpost specification; ASTRA values are fictional.\n" + state.DonkiSummary;
+                else if (state.CurrentMission == AstraMissionId.StormWatch)
                     scienceDataText.text = state.DonkiSummary + "\nASTRA simulated exposure index: " + Mathf.RoundToInt(state.radiationExposureIndex) + "/100 (fictional; not dose).";
                 else
                     scienceDataText.text = state.MissionDefinition.SourceLabel + " is the reference for this mission. All local resource amounts are simplified game values.";
@@ -491,6 +519,20 @@ namespace Astra
         private void UpdateFacilityPrompt()
         {
             AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
+            if (player != null && player.IsMountedInRover)
+            {
+                AstraRoverDrive drive = player.MountedRover;
+                facilityPanel.SetActive(game != null && game.CanControlPlayer);
+                if (drive != null)
+                {
+                    string targetStatus = drive.IsAtSample
+                        ? "Sample site reached. Press E / X to collect the virtual sample."
+                        : "Drive to the orange beacon: " + Mathf.CeilToInt(drive.DistanceToSample) + " m remaining.";
+                    facilityText.text = "ROVER NAVIGATION\nW / S drive    A / D steer    Q / B exit\n" + targetStatus;
+                }
+                facilityText.supportRichText = false;
+                return;
+            }
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
             facilityPanel.SetActive(game != null && game.CanControlPlayer && nearest != null);
             if (nearest != null)
@@ -503,11 +545,94 @@ namespace Astra
         public void SetEventVisible(bool visible)
         {
             eventPanel.SetActive(visible);
+            bool stormWatch = visible && game != null && game.CurrentMission == AstraMissionId.StormWatch;
+            if (eventPrimaryButton != null)
+                eventPrimaryButton.GetComponentInChildren<Text>().text = stormWatch
+                    ? "SUSPEND ROVER TRAVERSE  ·  BEGIN PROTECTION DRILL"
+                    : "SHELTER CREW  ·  SPEND POWER, LOWER SIMULATED EXPOSURE";
+            if (eventSecondaryButton != null) eventSecondaryButton.gameObject.SetActive(visible && !stormWatch);
             if (visible && eventCopyText != null && game != null)
             {
-                string shelterCost = game.shelterPrepared ? "6" : "18";
-                eventCopyText.text = "Training scenario only; this is not a live warning. NASA DONKI solar-particle records give event context, not this lunar crew's dose. Shelter costs " + shelterCost + " game power and adds less to ASTRA's fictional exposure index. Staying outside keeps power but adds more to that index.";
+                string destination = game != null ? AstraMissionCatalog.DestinationName(game.MissionDefinition.Destination).ToLowerInvariant() : "outpost";
+                eventCopyText.text = stormWatch
+                    ? "Training scenario only; this is not a live warning. A scheduled rover traverse is outside. Suspend it, then guide the astronaut to the protected area. The countdown and exposure index are fictional and do not represent Mars surface dose."
+                    : "Training scenario only; this is not a live warning. NASA DONKI solar-particle records give event context, not this " + destination + " crew's dose. Shelter costs game power and adds less to ASTRA's fictional exposure index. Staying outside keeps power but adds more to that index.";
             }
+        }
+
+        public void ShowDonkiBriefing(string date, string type, string description, string url, bool dataReady, Action reviewed)
+        {
+            stormPanelShowsDonki = true;
+            stormBodyText.fontSize = 17;
+            stormTitleText.text = "SPACE-WEATHER REPORT  /  DONKI";
+            stormActionButton.GetComponentInChildren<Text>().text = dataReady ? "I HAVE REVIEWED THIS REPORT" : "WAITING FOR DONKI DATA…";
+            stormActionButton.interactable = dataReady;
+            stormActionButton.onClick.RemoveAllListeners();
+            stormActionButton.onClick.AddListener(() => reviewed?.Invoke());
+            SetDonkiBriefingContent(date, type, description);
+            bool hasLink = !string.IsNullOrWhiteSpace(url) && url.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+            stormLinkButton.gameObject.SetActive(hasLink);
+            stormLinkButton.onClick.RemoveAllListeners();
+            if (hasLink) stormLinkButton.onClick.AddListener(() => Application.OpenURL(url));
+            stormPanel.SetActive(true);
+        }
+
+        public void ShowActivityChoice(string title, string body, string optionOne, string optionTwo, Action<int> selected)
+        {
+            stormPanelShowsDonki = false;
+            stormTitleText.text = title;
+            stormBodyText.text = body;
+            stormBodyText.fontSize = 16;
+            stormLinkButton.gameObject.SetActive(true);
+            stormLinkButton.interactable = true;
+            stormLinkButton.GetComponentInChildren<Text>().text = optionOne;
+            stormLinkButton.onClick.RemoveAllListeners();
+            stormLinkButton.onClick.AddListener(() => selected?.Invoke(0));
+            stormActionButton.gameObject.SetActive(true);
+            stormActionButton.interactable = true;
+            stormActionButton.GetComponentInChildren<Text>().text = optionTwo;
+            stormActionButton.onClick.RemoveAllListeners();
+            stormActionButton.onClick.AddListener(() => selected?.Invoke(1));
+            stormPanel.SetActive(true);
+        }
+
+        public void RefreshDonkiBriefing(string date, string type, string description, string url, bool dataReady)
+        {
+            if (!stormPanelShowsDonki || stormPanel == null || !stormPanel.activeSelf) return;
+            SetDonkiBriefingContent(date, type, description);
+            stormActionButton.interactable = dataReady;
+            stormActionButton.GetComponentInChildren<Text>().text = dataReady ? "I HAVE REVIEWED THIS REPORT" : "WAITING FOR DONKI DATA…";
+            bool hasLink = !string.IsNullOrWhiteSpace(url) && url.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+            stormLinkButton.gameObject.SetActive(hasLink);
+            stormLinkButton.onClick.RemoveAllListeners();
+            if (hasLink) stormLinkButton.onClick.AddListener(() => Application.OpenURL(url));
+        }
+
+        private void SetDonkiBriefingContent(string date, string type, string description)
+        {
+            stormBodyText.text = "EVENT DATE (UTC)\n" + date + "\n\nEVENT TYPE\n" + type +
+                "\n\nDESCRIPTION\n" + description +
+                "\n\nWHY MONITOR IT?\nSpace-weather teams observe solar events so mission planners can assess changing conditions. DONKI records are event context; they do not state radiation dose or predict crew health at Mars. The drill is fictional.";
+        }
+
+        public void ShowStormInspectionReport(string checklist, bool ready, Action submit)
+        {
+            stormPanelShowsDonki = false;
+            stormTitleText.text = "POST-DRILL INSPECTION REPORT";
+            stormBodyText.text = "Visit each marked facility and check its status. When all five checks are complete, return here to submit.\n\n" + checklist +
+                "\n\nThis training report records simulated system status; it is not a real Mars safety or radiation report.";
+            stormBodyText.fontSize = 14;
+            stormActionButton.GetComponentInChildren<Text>().text = ready ? "SUBMIT POST-DRILL REPORT" : "INSPECTION INCOMPLETE";
+            stormActionButton.interactable = ready;
+            stormActionButton.onClick.RemoveAllListeners();
+            if (ready) stormActionButton.onClick.AddListener(() => submit?.Invoke());
+            stormLinkButton.gameObject.SetActive(false);
+            stormPanel.SetActive(true);
+        }
+
+        public void HideStormPanel()
+        {
+            if (stormPanel != null) stormPanel.SetActive(false);
         }
         public void SetMissionHudVisible(bool visible) { if (canvas != null) canvas.gameObject.SetActive(visible); }
 
@@ -530,10 +655,19 @@ namespace Astra
         {
             reportTitleText.text = success ? definition.Title + " complete" : "Mission ended early";
             reportScoreText.text = "MISSION SCORE   " + score.ToString("000") + "     ·     BEST " + Mathf.Max(score, bestScore).ToString("000");
+            bool launchAvailable = success && game != null && game.CanLaunchNextDestination;
             reportBodyText.text = success
-                ? (nextUnlocked ? "Mission cleared. The next campaign mission is now unlocked." : "Campaign complete. You can replay any mission from the board.")
+                ? (launchAvailable
+                    ? "Mission cleared. Repair the spacecraft to launch to " + AstraMissionCatalog.DestinationName(AstraMissionCatalog.Get((AstraMissionId)((int)game.CurrentMission + 1)).Destination) + "."
+                    : nextUnlocked ? "Mission cleared. The next campaign mission is unlocked on the Moon." : "Campaign complete. You can replay any mission from the board.")
                 : "Critical reserves were exhausted before this mission's goals were complete. Review your choices and try again.";
             reportLearningText.text = "WHAT YOU LEARNED\n" + learning;
+            launchDestinationButton.gameObject.SetActive(launchAvailable);
+            if (launchAvailable)
+            {
+                AstraMissionId nextMission = (AstraMissionId)((int)game.CurrentMission + 1);
+                launchDestinationButton.GetComponentInChildren<Text>().text = "REPAIR SHIP & LAUNCH TO " + AstraMissionCatalog.DestinationName(AstraMissionCatalog.Get(nextMission).Destination);
+            }
             reportPanel.SetActive(true);
         }
 

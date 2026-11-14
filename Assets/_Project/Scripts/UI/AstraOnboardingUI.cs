@@ -235,7 +235,6 @@ namespace Astra
             cards.Add(listPanel.GetComponent<Image>());
             MakeText(listPanel.transform, "CAMPAIGN MISSIONS", 13, Teal, FontStyle.Bold, TextAnchor.MiddleLeft,
                 new Vector2(0.04f, 0.86f), new Vector2(0.96f, 0.98f));
-            string[] shortTitles = { "FIRST LIGHT", "AIR & WATER", "SHADOW SCOUT", "STORM WATCH", "FOOD FOR THE LONG STAY" };
             for (int i = 0; i < AstraMissionCatalog.Count; i++)
             {
                 float top = 0.82f - i * 0.16f;
@@ -437,25 +436,29 @@ namespace Astra
         {
             selectedIndex = Mathf.Clamp(selectedIndex, 0, AstraMissionCatalog.Count - 1);
             AstraMissionDefinition mission = AstraMissionCatalog.Get(selectedIndex);
-            missionDetailTitle.text = (selectedIndex + 1).ToString("00") + "  /  " + mission.Title.ToUpperInvariant();
-            missionDetailSummary.text = mission.Subtitle;
+            missionDetailTitle.text = (selectedIndex + 1).ToString("00") + "  /  " + AstraMissionCatalog.DestinationName(mission.Destination) + "  /  " + mission.Title.ToUpperInvariant();
+            missionDetailSummary.text = mission.Subtitle + "\nDestination: " + AstraMissionCatalog.DestinationName(mission.Destination);
             missionBriefingText.text = mission.Briefing;
             int best = AstraCampaignProgress.BestScore(mission.Id);
-            bool unlocked = selectedIndex <= highestUnlocked;
+            bool unlocked = AstraCampaignProgress.IsMissionAvailable(mission.Id);
+            bool missionUnlocked = AstraCampaignProgress.IsUnlocked(mission.Id);
             missionDetailStatus.text = unlocked
-                ? (best > 0 ? "UNLOCKED   ·   PERSONAL BEST " + best.ToString("000") : "UNLOCKED   ·   NO SCORE YET")
+                ? (best > 0 ? AstraMissionCatalog.DestinationName(mission.Destination) + "   ·   PERSONAL BEST " + best.ToString("000") : AstraMissionCatalog.DestinationName(mission.Destination) + "   ·   UNLOCKED")
+                : missionUnlocked ? "LOCKED   ·   REPAIR SHIP TO REACH " + AstraMissionCatalog.DestinationName(mission.Destination)
                 : "LOCKED   ·   COMPLETE MISSION " + selectedIndex.ToString("00") + " TO UNLOCK";
             missionSourceButton.GetComponentInChildren<Text>().text = "LEARN MORE  ·  " + mission.SourceLabel.ToUpperInvariant() + "  ↗";
             missionBriefingUrl = mission.SourceUrl;
             launchSelectedMissionButton.interactable = unlocked;
             Text launchLabel = launchSelectedMissionButton.GetComponentInChildren<Text>();
-            launchLabel.text = unlocked ? "LAUNCH " + mission.Title.ToUpperInvariant() : "MISSION LOCKED";
+            launchLabel.text = unlocked ? "LAUNCH " + mission.Title.ToUpperInvariant() : missionUnlocked ? "DESTINATION LOCKED" : "MISSION LOCKED";
 
             for (int i = 0; i < missionButtons.Length; i++)
             {
                 bool selected = i == selectedIndex;
-                bool itemUnlocked = i <= highestUnlocked;
-                missionButtonLabels[i].text = (i + 1).ToString("00") + "   " + new[] { "FIRST LIGHT", "AIR & WATER", "SHADOW SCOUT", "STORM WATCH", "FOOD FOR THE LONG STAY" }[i] + (itemUnlocked ? "" : "   ·   LOCKED");
+                AstraMissionDefinition item = AstraMissionCatalog.Get(i);
+                bool itemUnlocked = AstraCampaignProgress.IsMissionAvailable(item.Id);
+                bool slotUnlocked = AstraCampaignProgress.IsUnlocked(item.Id);
+                missionButtonLabels[i].text = (i + 1).ToString("00") + "   " + AstraMissionCatalog.DestinationName(item.Destination) + "  /  " + item.Title.ToUpperInvariant() + (itemUnlocked ? "" : slotUnlocked ? "   ·   SHIP REPAIR" : "   ·   LOCKED");
             missionButtonLabels[i].color = itemUnlocked ? White : Soft;
                 ColorBlock colors = missionButtons[i].colors;
                 colors.normalColor = selected ? new Color(0.04f, 0.38f, 0.46f) : new Color(0.07f, 0.15f, 0.23f);

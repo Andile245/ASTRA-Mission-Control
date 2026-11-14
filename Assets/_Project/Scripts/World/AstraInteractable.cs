@@ -15,5 +15,18 @@ namespace Astra
             if (game == null) return;
             game.InteractWith(this);
         }
+
+        public void PlayCompletionFeedback()
+        {
+            AstraFacilityFeedback feedback = GetComponent<AstraFacilityFeedback>();
+            if (feedback == null) feedback = gameObject.AddComponent<AstraFacilityFeedback>();
+            feedback.Play(this);
+        }
+
+        public void ResetCompletionFeedback()
+        {
+            AstraFacilityFeedback feedback = GetComponent<AstraFacilityFeedback>();
+            if (feedback != null) feedback.ResetVisuals();
+        }
     }
 }

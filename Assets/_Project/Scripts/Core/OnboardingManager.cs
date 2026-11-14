@@ -41,7 +41,7 @@ namespace Astra
             game = AstraGameManager.Instance != null ? AstraGameManager.Instance : FindFirstObjectByType<AstraGameManager>();
             tutorial = GetComponent<TutorialManager>();
             astro = FindFirstObjectByType<AstroCompanionController>();
-            SelectedMissionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ASTRA_SELECTED_MISSION", 0), 0, AstraCampaignProgress.HighestUnlocked);
+            SelectedMissionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ASTRA_SELECTED_MISSION", 0), 0, AstraMissionCatalog.Count - 1);
             if (tutorial != null) tutorial.StepChanged += TutorialStepChanged;
             Invoke(nameof(ShowWelcome), 0f);
         }
@@ -178,6 +178,11 @@ namespace Astra
         public void ShowMissionSelect()
         {
             IsMissionSelectOpen = true;
+            if (!AstraCampaignProgress.IsMissionAvailable((AstraMissionId)SelectedMissionIndex))
+            {
+                for (int i = Mathf.Min(AstraCampaignProgress.HighestUnlocked, AstraMissionCatalog.Count - 1); i >= 0; i--)
+                    if (AstraCampaignProgress.IsMissionAvailable((AstraMissionId)i)) { SelectedMissionIndex = i; break; }
+            }
             hud()?.SetMissionHudVisible(false);
             ui?.ShowMissionSelect(SelectedMissionIndex, AstraCampaignProgress.HighestUnlocked);
             astro?.PointAt(null);
@@ -193,7 +198,7 @@ namespace Astra
 
         public void LaunchMission()
         {
-            if (SelectedMissionIndex > AstraCampaignProgress.HighestUnlocked)
+            if (!AstraCampaignProgress.IsMissionAvailable((AstraMissionId)SelectedMissionIndex))
             {
                 ui?.ShowMissionLockedMessage();
                 return;

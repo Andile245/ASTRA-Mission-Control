@@ -2,52 +2,30 @@ using UnityEngine;
 
 namespace Astra
 {
-    public enum AstraMissionId
-    {
-        FirstLight = 0,
-        AirAndWater = 1,
-        ShadowScout = 2,
-        StormWatch = 3,
-        FoodForTheLongStay = 4
-    }
+    public enum AstraMissionId { FirstLight = 0, FoodForTheLongStay = 1, StormWatch = 2, ShadowScout = 3 }
+    public enum AstraDestinationId { Moon = 0, Mars = 1, Europa = 2 }
 
     public enum AstraObjectiveId
     {
-        Communications,
-        Solar,
-        LifeSupport,
-        Shelter,
-        CropHarvest,
-        StormResponse,
-        RoverSample,
-        OxygenRestored,
-        WaterRestored
+        Communications, Solar, LifeSupport, Shelter, CropHarvest, StormResponse, RoverSample, OxygenRestored, WaterRestored,
+        WeatherReportReviewed, ProtectedAreaReadiness, PostDrillInspection
     }
 
     public sealed class AstraMissionDefinition
     {
         public readonly AstraMissionId Id;
-        public readonly string Title;
-        public readonly string Subtitle;
-        public readonly string Briefing;
-        public readonly string Lesson;
-        public readonly string SourceLabel;
-        public readonly string SourceUrl;
+        public readonly AstraDestinationId Destination;
+        public readonly string Title, Subtitle, Briefing, Lesson, SourceLabel, SourceUrl;
         public readonly AstraObjectiveId[] Objectives;
         public readonly int CropHarvestsRequired;
 
-        public AstraMissionDefinition(AstraMissionId id, string title, string subtitle, string briefing, string lesson,
-            string sourceLabel, string sourceUrl, int cropHarvestsRequired, params AstraObjectiveId[] objectives)
+        public AstraMissionDefinition(AstraMissionId id, AstraDestinationId destination, string title, string subtitle,
+            string briefing, string lesson, string sourceLabel, string sourceUrl, int cropHarvestsRequired,
+            params AstraObjectiveId[] objectives)
         {
-            Id = id;
-            Title = title;
-            Subtitle = subtitle;
-            Briefing = briefing;
-            Lesson = lesson;
-            SourceLabel = sourceLabel;
-            SourceUrl = sourceUrl;
-            CropHarvestsRequired = cropHarvestsRequired;
-            Objectives = objectives;
+            Id = id; Destination = destination; Title = title; Subtitle = subtitle; Briefing = briefing;
+            Lesson = lesson; SourceLabel = sourceLabel; SourceUrl = sourceUrl;
+            CropHarvestsRequired = cropHarvestsRequired; Objectives = objectives;
         }
     }
 
@@ -55,37 +33,39 @@ namespace Astra
     {
         private static readonly AstraMissionDefinition[] Missions =
         {
-            new AstraMissionDefinition(AstraMissionId.FirstLight, "First Light", "Bring the outpost online",
-                "Activate communications and solar power, inspect life support, prepare shelter, grow food, respond to a practice alert, and secure a virtual sample.",
-                "Outpost systems depend on one another. Solar power supports equipment, while sheltering and food production use limited reserves. All ASTRA quantities are game values.",
-                "NASA Moon Base Systems", "https://www.nasa.gov/moonbase-systems/", 1,
-                AstraObjectiveId.Communications, AstraObjectiveId.Solar, AstraObjectiveId.LifeSupport, AstraObjectiveId.Shelter,
-                AstraObjectiveId.CropHarvest, AstraObjectiveId.StormResponse, AstraObjectiveId.RoverSample),
-            new AstraMissionDefinition(AstraMissionId.AirAndWater, "Air & Water", "Rebuild the habitat life-support loop",
-                "Oxygen and water are running low. Bring solar power online, inspect life support, recover clean water, then use some of that water to generate oxygen.",
-                "NASA ECLSS connects water recovery, air revitalization, and oxygen generation. Water Recovery cleans wastewater before reuse; Oxygen Generation uses electrolysis to split water into oxygen and hydrogen. NASA reports about 90% water recovery aboard the ISS. ASTRA simplifies these systems into game meters; its values are not lunar engineering data.",
+            new AstraMissionDefinition(AstraMissionId.FirstLight, AstraDestinationId.Moon, "First Light", "Stabilize the lunar outpost",
+                "Review the outpost readings, choose how to align the solar array, operate the water and oxygen systems, prepare the shelter, respond to a practice alert, then drive the rover and classify a virtual sample.",
+                "NASA ECLSS connects water recovery, air revitalization, and oxygen generation. NASA reports about 90% water recovery aboard the ISS. ASTRA simplifies these systems into fictional game meters. The solar choices, alert, and sample are learning activities, not operating procedures or dose forecasts.",
                 "NASA ECLSS", "https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/", 1,
-                AstraObjectiveId.Solar, AstraObjectiveId.LifeSupport, AstraObjectiveId.WaterRestored, AstraObjectiveId.OxygenRestored),
-            new AstraMissionDefinition(AstraMissionId.ShadowScout, "Shadow Scout", "Scout a permanently shadowed region",
-                "Establish the comms link, charge the rover from the solar array, and collect a virtual sample near the crater shadow line.",
-                "Some lunar south-pole crater interiors stay in permanent shadow. Scientists study these cold places because water ice may be preserved there; the rover sample in ASTRA is virtual.",
-                "NASA Shackleton Crater Resource", "https://science.nasa.gov/resource/shackleton-craters-illuminated-rim-shadowed-interior/", 1,
-                AstraObjectiveId.Communications, AstraObjectiveId.Solar, AstraObjectiveId.RoverSample),
-            new AstraMissionDefinition(AstraMissionId.StormWatch, "Storm Watch", "Respond to a solar-particle drill",
-                "Power the outpost, prepare the shelter, and choose whether to pause outdoor work during a clearly labeled practice alert.",
-                "NASA DONKI catalogs analyzed space-weather events. Those records are event context, not a lunar crew dose or medical forecast. ASTRA's alert and exposure index are fictional.",
-                "NASA CCMC DONKI", "https://ccmc.gsfc.nasa.gov/tools/DONKI/", 1,
-                AstraObjectiveId.Communications, AstraObjectiveId.Solar, AstraObjectiveId.Shelter, AstraObjectiveId.StormResponse),
-            new AstraMissionDefinition(AstraMissionId.FoodForTheLongStay, "Food for the Long Stay", "Grow a sustainable food supply",
-                "Stabilize the greenhouse, protect its water and power budget, and complete two crop cycles before supplies run short.",
-                "NASA studies plant growth as a way to provide fresh food and support future long-duration missions. ASTRA's crop times, yields, and costs are shortened fictional game values.",
+                AstraObjectiveId.Communications, AstraObjectiveId.Solar, AstraObjectiveId.LifeSupport,
+                AstraObjectiveId.WaterRestored, AstraObjectiveId.OxygenRestored, AstraObjectiveId.Shelter,
+                AstraObjectiveId.StormResponse, AstraObjectiveId.RoverSample),
+            new AstraMissionDefinition(AstraMissionId.FoodForTheLongStay, AstraDestinationId.Moon, "Moon Greenhouse", "Grow and harvest a lunar crop",
+                "Run the greenhouse as its own mission: choose between two crop plans, manage the water and power budget, observe plant growth, and complete two harvest cycles.",
+                "NASA studies plant growth as a way to provide fresh food and support future long-duration missions. ASTRA's crop choices, times, yields, and costs are simplified fictional game values, not horticulture instructions.",
                 "NASA Space Crops", "https://science.nasa.gov/biological-physical/space-crops/", 2,
-                AstraObjectiveId.Solar, AstraObjectiveId.LifeSupport, AstraObjectiveId.CropHarvest)
+                AstraObjectiveId.Solar, AstraObjectiveId.LifeSupport, AstraObjectiveId.CropHarvest),
+            new AstraMissionDefinition(AstraMissionId.StormWatch, AstraDestinationId.Mars, "Storm Watch: Protect the Crew", "Review, shelter, and inspect the Mars outpost",
+                "Review a NASA DONKI space-weather event at the monitoring station. Check power, life support, communications, and the protected area. Suspend the planned rover traverse, guide the astronaut to shelter during a simulated event, then inspect the outpost and submit a post-drill report.",
+                "NASA DONKI records analyzed space-weather observations and event context. Its records do not provide a Mars surface dose or a crew medical forecast. ASTRA's alert, countdown, and exposure index are fictional training values.",
+                "NASA CCMC DONKI", "https://ccmc.gsfc.nasa.gov/tools/DONKI/", 1,
+                AstraObjectiveId.WeatherReportReviewed, AstraObjectiveId.ProtectedAreaReadiness,
+                AstraObjectiveId.StormResponse, AstraObjectiveId.PostDrillInspection),
+            new AstraMissionDefinition(AstraMissionId.ShadowScout, AstraDestinationId.Europa, "Shadow Scout", "Survey an icy moon",
+                "Establish the Europa outpost link, choose a rover route, drive to the marked survey site, and classify a virtual surface sample from its clues.",
+                "Europa is an icy moon with a global ocean beneath its crust. The ASTRA rover route and sample are fictional; a surface sample cannot be treated as a sample of the subsurface ocean.",
+                "NASA Europa", "https://science.nasa.gov/jupiter/moons/europa/", 1,
+                AstraObjectiveId.Communications, AstraObjectiveId.Solar, AstraObjectiveId.RoverSample)
         };
 
         public static int Count => Missions.Length;
         public static AstraMissionDefinition Get(AstraMissionId id) => Missions[Mathf.Clamp((int)id, 0, Missions.Length - 1)];
         public static AstraMissionDefinition Get(int index) => Missions[Mathf.Clamp(index, 0, Missions.Length - 1)];
+
+        public static string DestinationName(AstraDestinationId id)
+        {
+            switch (id) { case AstraDestinationId.Mars: return "MARS"; case AstraDestinationId.Europa: return "EUROPA"; default: return "MOON"; }
+        }
 
         public static string ObjectiveTitle(AstraObjectiveId id)
         {
@@ -97,9 +77,12 @@ namespace Astra
                 case AstraObjectiveId.Shelter: return "Prepare the radiation shelter";
                 case AstraObjectiveId.CropHarvest: return "Complete the crop harvest";
                 case AstraObjectiveId.StormResponse: return "Respond to the solar-particle drill";
-                case AstraObjectiveId.RoverSample: return "Collect a virtual sample with the rover";
+                case AstraObjectiveId.RoverSample: return "Collect and classify a virtual sample with the rover";
                 case AstraObjectiveId.OxygenRestored: return "Generate breathing oxygen";
                 case AstraObjectiveId.WaterRestored: return "Recover clean water";
+                case AstraObjectiveId.WeatherReportReviewed: return "Review the space-weather report at the monitoring station";
+                case AstraObjectiveId.ProtectedAreaReadiness: return "Check power, life support, communications, and shelter readiness";
+                case AstraObjectiveId.PostDrillInspection: return "Inspect the outpost and submit the post-drill report";
                 default: return id.ToString();
             }
         }
@@ -107,35 +90,39 @@ namespace Astra
 
     public static class AstraCampaignProgress
     {
-        private const string UnlockedKey = "ASTRA_CAMPAIGN_UNLOCKED";
-        // Keep Mission 2 available as a playable learning route while Mission 1 remains the recommended introduction.
-        public static int HighestUnlocked => Mathf.Max(1, Mathf.Clamp(PlayerPrefs.GetInt(UnlockedKey, 0), 0, AstraMissionCatalog.Count - 1));
-        public static int BestScore(AstraMissionId mission) => PlayerPrefs.GetInt("ASTRA_BEST_SCORE_" + (int)mission, 0);
-
+        private const string UnlockedKey = "ASTRA_CAMPAIGN_UNLOCKED_V2";
+        private const string DestinationKey = "ASTRA_DESTINATION_REACHED_V2";
+        public static int HighestUnlocked => Mathf.Clamp(PlayerPrefs.GetInt(UnlockedKey, 0), 0, AstraMissionCatalog.Count - 1);
+        public static AstraDestinationId HighestDestinationReached => (AstraDestinationId)Mathf.Clamp(PlayerPrefs.GetInt(DestinationKey, 0), 0, 2);
+        public static int BestScore(AstraMissionId mission) => PlayerPrefs.GetInt("ASTRA_BEST_SCORE_V2_" + (int)mission, 0);
         public static bool IsUnlocked(AstraMissionId mission) => (int)mission <= HighestUnlocked;
+        public static bool IsMissionAvailable(AstraMissionId mission)
+        {
+            AstraMissionDefinition definition = AstraMissionCatalog.Get(mission);
+            return IsUnlocked(mission) && (int)definition.Destination <= (int)HighestDestinationReached;
+        }
 
         public static void RecordSuccess(AstraMissionId mission, int score)
         {
-            string scoreKey = "ASTRA_BEST_SCORE_" + (int)mission;
+            string scoreKey = "ASTRA_BEST_SCORE_V2_" + (int)mission;
             if (score > PlayerPrefs.GetInt(scoreKey, 0)) PlayerPrefs.SetInt(scoreKey, score);
             int nextUnlocked = Mathf.Min(AstraMissionCatalog.Count - 1, (int)mission + 1);
             if (nextUnlocked > HighestUnlocked) PlayerPrefs.SetInt(UnlockedKey, nextUnlocked);
+            PlayerPrefs.Save();
+        }
+
+        public static void MarkDestinationReached(AstraDestinationId destination)
+        {
+            if ((int)destination > (int)HighestDestinationReached)
+                PlayerPrefs.SetInt(DestinationKey, (int)destination);
             PlayerPrefs.Save();
         }
     }
 
     public enum FacilityType
     {
-        Communications,
-        SolarArray,
-        LifeSupport,
-        Habitat,
-        Greenhouse,
-        OxygenProcessor,
-        WaterRecycler,
-        ResearchLab,
-        Rover,
-        RadiationShelter
+        Communications, SolarArray, LifeSupport, Habitat, Greenhouse, OxygenProcessor,
+        WaterRecycler, ResearchLab, Rover, RadiationShelter, Spacecraft, SpaceWeatherStation
     }
 
     [System.Serializable]
@@ -144,12 +131,6 @@ namespace Astra
         public AstraObjectiveId id;
         public string title;
         public bool complete;
-
-        public MissionObjective(AstraObjectiveId id)
-        {
-            this.id = id;
-            title = AstraMissionCatalog.ObjectiveTitle(id);
-            complete = false;
-        }
+        public MissionObjective(AstraObjectiveId id) { this.id = id; title = AstraMissionCatalog.ObjectiveTitle(id); complete = false; }
     }
 }
