@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Text;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -22,6 +23,7 @@ namespace Astra
         private GameObject introPanel, pausePanel, eventPanel, reportPanel, briefingPanel, facilityPanel, tutorialPanel, resourceAlertPanel;
         private Text resourceAlertText;
         private Text tutorialTitleText, tutorialBodyText, tutorialCounterText, tutorialKeysText;
+        private Text scienceDataText, eventCopyText;
         private int tutorialStep;
         private bool resumeMissionAfterTutorial;
         private static readonly string[] TutorialTitles = { "Move around the outpost.", "Walk up to a facility.", "Watch your resources." };
@@ -37,6 +39,8 @@ namespace Astra
         };
         private RectTransform root;
         private bool built;
+        private readonly Dictionary<Text, int> baseTextSizes = new Dictionary<Text, int>();
+        private readonly Dictionary<Image, Color> basePanelColors = new Dictionary<Image, Color>();
         private float refreshClock;
 
         private void Awake()
@@ -73,7 +77,7 @@ namespace Astra
             CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             // Design for a 720p reference canvas so text remains readable in a smaller Game view.
-            scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.referenceResolution = new Vector2(960f, 540f);
             scaler.matchWidthOrHeight = 0.5f;
             root = canvasObject.GetComponent<RectTransform>();
 
@@ -89,6 +93,7 @@ namespace Astra
             BuildEventPanel();
             BuildOverlayPanels();
             BuildBriefingPanel();
+            introPanel.SetActive(false);
         }
 
         private void BuildTopBar()
@@ -143,7 +148,7 @@ namespace Astra
             GameObject panel = Panel("Objectives", root, Navy, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -207f), new Vector2(360f, 358f));
             Text kicker = TextBlock(panel.transform, "MISSION 01   /   ARRIVAL", 13, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(kicker.rectTransform, new Vector2(0f, 0.83f), new Vector2(0.66f, 1f), new Vector2(22f, -4f), Vector2.zero);
-            MakeButton(panel.transform, "BRIEFING  ↗", () => briefingPanel?.SetActive(true), new Vector2(0.70f, 0.86f), new Vector2(0.96f, 0.98f), new Color(0.04f, 0.18f, 0.24f), 11);
+            MakeButton(panel.transform, "SCIENCE / DATA  ↗", () => briefingPanel?.SetActive(true), new Vector2(0.65f, 0.86f), new Vector2(0.96f, 0.98f), new Color(0.04f, 0.18f, 0.24f), 11);
             Text title = TextBlock(panel.transform, "First light", 26, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0f, 0.70f), new Vector2(1f, 0.85f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
             Text desc = TextBlock(panel.transform, "Bring the outpost online and keep critical systems stable.", 14, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
@@ -192,18 +197,18 @@ namespace Astra
         private void BuildEventPanel()
         {
             eventPanel = Panel("PowerEvent", root, new Color(0.025f, 0.055f, 0.10f, 0.98f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 460f));
-            Text kicker = TextBlock(eventPanel.transform, "!   MISSION ALERT  /  PRIORITY 2", 14, new Color(1f, 0.68f, 0.30f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            Text kicker = TextBlock(eventPanel.transform, "!   SOLAR-PARTICLE DRILL  /  TRAINING SCENARIO", 14, new Color(1f, 0.68f, 0.30f), FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(kicker.rectTransform, new Vector2(0f, 0.82f), new Vector2(1f, 1f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
-            Text title = TextBlock(eventPanel.transform, "Solar output fluctuation", 29, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Text title = TextBlock(eventPanel.transform, "Prepare for a solar-particle event", 29, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0f, 0.69f), new Vector2(1f, 0.85f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
-            Text copy = TextBlock(eventPanel.transform, "Array output has dropped in this simulation and battery reserves are falling. Choose how to stabilize the outpost.", 16, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
-            copy.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(copy.rectTransform, new Vector2(0f, 0.48f), new Vector2(1f, 0.68f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
-            MakeButton(eventPanel.transform, "SHED GREENHOUSE LOAD    ·    PRIORITIZE LIFE SUPPORT", () => game?.ResolvePowerEvent(true),
+            eventCopyText = TextBlock(eventPanel.transform, "This is a practice scenario, not a live warning. DONKI records solar events; it does not give this lunar outpost's radiation dose.", 16, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            eventCopyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(eventCopyText.rectTransform, new Vector2(0f, 0.48f), new Vector2(1f, 0.68f), new Vector2(28f, 0f), new Vector2(-28f, 0f));
+            MakeButton(eventPanel.transform, "SHELTER CREW  ·  SPEND POWER, LOWER SIMULATED EXPOSURE", () => game?.ResolveRadiationDrill(true),
                 new Vector2(0.06f, 0.29f), new Vector2(0.94f, 0.43f), new Color(0.03f, 0.42f, 0.47f), 14);
-            MakeButton(eventPanel.transform, "RESTART ALL SYSTEMS    ·    KEEP FULL OUTPUT", () => game?.ResolvePowerEvent(false),
+            MakeButton(eventPanel.transform, "KEEP OUTSIDE OPERATIONS  ·  KEEP POWER, ACCEPT MORE RISK", () => game?.ResolveRadiationDrill(false),
                 new Vector2(0.06f, 0.12f), new Vector2(0.94f, 0.26f), new Color(0.15f, 0.21f, 0.29f), 14);
-            Text note = TextBlock(eventPanel.transform, "SIMULATION VALUES ONLY  ·  NOT OPERATIONAL GUIDANCE", 11, Muted, FontStyle.Bold, TextAnchor.MiddleCenter);
+            Text note = TextBlock(eventPanel.transform, "FICTIONAL EXPOSURE INDEX  ·  NOT A DOSE OR MEDICAL MEASUREMENT", 11, Muted, FontStyle.Bold, TextAnchor.MiddleCenter);
             SetRect(note.rectTransform, new Vector2(0f, 0.015f), new Vector2(1f, 0.10f), Vector2.zero, Vector2.zero);
             eventPanel.SetActive(false);
         }
@@ -246,6 +251,7 @@ namespace Astra
             SetRect(paused.rectTransform, new Vector2(0.35f, 0.57f), new Vector2(0.65f, 0.69f), Vector2.zero, Vector2.zero);
             MakeButton(pausePanel.transform, "RESUME MISSION", () => game?.TogglePause(), new Vector2(0.39f, 0.43f), new Vector2(0.61f, 0.52f), new Color(0.02f, 0.45f, 0.52f), 16);
             MakeButton(pausePanel.transform, "RESTART", () => game?.RestartMission(), new Vector2(0.39f, 0.31f), new Vector2(0.61f, 0.40f), new Color(0.15f, 0.21f, 0.29f), 15);
+            MakeButton(pausePanel.transform, "ACCESSIBILITY SETTINGS", () => OnboardingManager.Instance?.ShowSettingsFromPause(), new Vector2(0.39f, 0.19f), new Vector2(0.61f, 0.28f), new Color(0.04f, 0.30f, 0.40f), 15);
 
             reportPanel = CreateFullscreenDim("MissionReport");
             Text reportKicker = TextBlock(reportPanel.transform, "ASTRA  /  FLIGHT DEBRIEF", 14, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
@@ -268,13 +274,18 @@ namespace Astra
         private void BuildBriefingPanel()
         {
             briefingPanel = CreateFullscreenDim("BriefingDetails");
-            Text title = TextBlock(briefingPanel.transform, "MISSION 01  /  FIRST LIGHT", 32, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            Text title = TextBlock(briefingPanel.transform, "SCIENCE  /  CHALLENGE DATA", 32, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0.28f, 0.65f), new Vector2(0.72f, 0.77f), Vector2.zero, Vector2.zero);
-            Text body = TextBlock(briefingPanel.transform, "A lunar outpost depends on linked systems. Near the lunar South Pole, ridges can receive long periods of sunlight while some crater interiors remain permanently shadowed. That contrast creates power and navigation challenges.\n\nThe Moon's surface gravity is about 1.62 m/s²; this prototype uses a simplified low-gravity hop. A simulated power fluctuation asks you to balance critical and nonessential loads.\n\nNASA source notes: Lunar South Pole Region; Moon Base Systems; Moon Fact Sheet. See Docs/SCIENCE-SOURCES.md.\n\nThe terrain is stylized, and all resource values and emergency choices are simplified game rules—not NASA engineering specifications.", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
+            Text body = TextBlock(briefingPanel.transform, "This mission teaches the Junior Astronaut Mission Trainer challenge through resource trade-offs. Growing food uses water and power in ASTRA; those costs and the shortened crop time are fictional game values.\n\nThe Canadian Space Agency's youth toolkit explains food production, astronaut nutrition, and activities for learning about food in space. NASA's DONKI database records solar-particle events. DONKI event records are not a radiation dose for this lunar base. RadLab readings are from spacecraft/instruments in different environments and are not a direct lunar surface dose prediction.\n\nASTRA's exposure index, event timing, crop yield, and power costs are invented for gameplay. The outpost and terrain are fictional. The alert is a practice scenario, never a live safety warning.", 17, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
             body.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(body.rectTransform, new Vector2(0.28f, 0.39f), new Vector2(0.72f, 0.64f), Vector2.zero, Vector2.zero);
-            MakeButton(briefingPanel.transform, "BACK TO MISSION", () => briefingPanel.SetActive(false), new Vector2(0.28f, 0.25f), new Vector2(0.50f, 0.34f), new Color(0.02f, 0.45f, 0.52f), 15);
-            MakeButton(briefingPanel.transform, "REPLAY HOW-TO GUIDE", () => ShowTutorialStep(0), new Vector2(0.52f, 0.25f), new Vector2(0.72f, 0.34f), new Color(0.12f, 0.20f, 0.28f), 13);
+            SetRect(body.rectTransform, new Vector2(0.28f, 0.43f), new Vector2(0.72f, 0.66f), Vector2.zero, Vector2.zero);
+            scienceDataText = TextBlock(briefingPanel.transform, "Loading DONKI context…", 15, Cyan, FontStyle.Bold, TextAnchor.UpperLeft);
+            scienceDataText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(scienceDataText.rectTransform, new Vector2(0.28f, 0.34f), new Vector2(0.72f, 0.42f), Vector2.zero, Vector2.zero);
+            MakeButton(briefingPanel.transform, "OPEN NASA DONKI", () => Application.OpenURL("https://ccmc.gsfc.nasa.gov/tools/DONKI/"), new Vector2(0.28f, 0.23f), new Vector2(0.42f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
+            MakeButton(briefingPanel.transform, "OPEN CSA FOOD TOOLKIT", () => Application.OpenURL("https://www.asc-csa.gc.ca/eng/youth-educators/toolkits/food-production/"), new Vector2(0.43f, 0.23f), new Vector2(0.59f, 0.31f), new Color(0.04f, 0.30f, 0.40f), 12);
+            MakeButton(briefingPanel.transform, "BACK TO MISSION", () => briefingPanel.SetActive(false), new Vector2(0.60f, 0.23f), new Vector2(0.72f, 0.31f), new Color(0.02f, 0.45f, 0.52f), 12);
+            MakeButton(briefingPanel.transform, "REPLAY GUIDE", () => ShowTutorialStep(0), new Vector2(0.40f, 0.11f), new Vector2(0.60f, 0.19f), new Color(0.12f, 0.20f, 0.28f), 12);
             briefingPanel.SetActive(false);
         }
 
@@ -358,6 +369,7 @@ namespace Astra
             Image image = panel.GetComponent<Image>();
             image.color = color;
             image.raycastTarget = true;
+            basePanelColors[image] = color;
             return panel;
         }
 
@@ -370,6 +382,7 @@ namespace Astra
             text.text = content;
             // Small labels were becoming unreadable after CanvasScaler reduced them in the Game view.
             text.fontSize = Mathf.Max(size, 17);
+            baseTextSizes[text] = text.fontSize;
             text.color = color;
             text.fontStyle = style;
             text.alignment = align;
@@ -411,6 +424,7 @@ namespace Astra
             UpdateResource(waterText, waterFill, state.water);
             UpdateResource(foodText, foodFill, state.food);
             UpdateResource(powerText, powerFill, state.power);
+            if (scienceDataText != null) scienceDataText.text = state.DonkiSummary + "\nASTRA simulated exposure index: " + Mathf.RoundToInt(state.radiationExposureIndex) + "/100 (fictional; not dose).";
             string resourceWarning = state.Resources != null ? state.Resources.GetWarning() : string.Empty;
             bool showResourceWarning = state.missionStarted && !state.missionFinished && !string.IsNullOrEmpty(resourceWarning);
             resourceAlertPanel.SetActive(showResourceWarning);
@@ -425,12 +439,14 @@ namespace Astra
             }
             StringBuilder list = new StringBuilder();
             int complete = 0;
+            bool noRead = PlayerSettingsManager.Instance != null && PlayerSettingsManager.Instance.NoReadingMode;
+            string[] objectiveIcons = { "◉", "☀", "◎", "ϟ", "◉" };
             for (int i = 0; i < state.Objectives.Count; i++)
             {
                 MissionObjective objective = state.Objectives[i];
                 if (objective.complete) complete++;
                 list.Append(objective.complete ? "<color=#5ce3bd>✓</color>  " : "<color=#7e9aad>○</color>  ");
-                list.Append(objective.title);
+                list.Append(noRead ? objectiveIcons[Mathf.Min(i, objectiveIcons.Length - 1)] : LanguageManager.Get("objective." + i, objective.title));
                 if (i < state.Objectives.Count - 1) list.Append('\n');
             }
             objectiveText.supportRichText = true;
@@ -458,7 +474,16 @@ namespace Astra
 
         public void SetIntroVisible(bool visible) => introPanel.SetActive(visible);
         public void SetPauseVisible(bool visible) => pausePanel.SetActive(visible);
-        public void SetEventVisible(bool visible) => eventPanel.SetActive(visible);
+        public void SetEventVisible(bool visible)
+        {
+            eventPanel.SetActive(visible);
+            if (visible && eventCopyText != null && game != null)
+            {
+                string shelterCost = game.shelterPrepared ? "6" : "18";
+                eventCopyText.text = "Training scenario only; this is not a live warning. NASA DONKI solar-particle records give event context, not this lunar crew's dose. Shelter costs " + shelterCost + " game power and adds less to ASTRA's fictional exposure index. Staying outside keeps power but adds more to that index.";
+            }
+        }
+        public void SetMissionHudVisible(bool visible) { if (canvas != null) canvas.gameObject.SetActive(visible); }
 
         public void ShowMessage(string message)
         {
@@ -492,6 +517,21 @@ namespace Astra
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        public void ApplyAccessibilitySettings()
+        {
+            if (baseTextSizes.Count == 0) return;
+            PlayerSettingsManager settings = PlayerSettingsManager.Instance;
+            float scale = settings != null ? settings.TextScale : 1f;
+            foreach (var pair in baseTextSizes)
+                if (pair.Key != null) pair.Key.fontSize = Mathf.Clamp(Mathf.RoundToInt(pair.Value * scale), 14, 54);
+            bool high = settings != null && settings.HighContrast;
+            foreach (var pair in basePanelColors)
+                if (pair.Key != null)
+                    pair.Key.color = high && pair.Value.a > 0.72f
+                        ? new Color(0f, 0f, 0f, pair.Value.a)
+                        : pair.Value;
         }
     }
 }

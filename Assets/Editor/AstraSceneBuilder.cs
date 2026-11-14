@@ -49,11 +49,31 @@ public static class AstraSceneBuilder
         BuildEnvironment();
         BuildOutpost();
         BuildAstronaut();
+        BuildPracticeDeck();
         BuildGameSystems();
         EditorSceneManager.SaveScene(UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene(), ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         AssetDatabase.SaveAssets();
         Debug.Log("ASTRA: generated the first playable scene at " + ScenePath);
+    }
+
+    [MenuItem("ASTRA/Upgrade Challenge Facilities")]
+    public static void UpgradeChallengeFacilities()
+    {
+        var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        GameObject outpost = GameObject.Find("SHACKLETON OUTPOST");
+        if (outpost == null)
+            throw new System.InvalidOperationException("Could not find SHACKLETON OUTPOST in the ASTRA scene.");
+
+        if (outpost.transform.Find("Radiation Shelter") == null)
+        {
+            BuildRadiationShelter(outpost.transform, new Vector3(-8f, 0f, 19f));
+            AddBeacon(outpost.transform, new Vector3(-8f, 0f, 19f), new Color(0.8f, 0.55f, 1f));
+        }
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene, ScenePath);
+        AssetDatabase.SaveAssets();
+        Debug.Log("ASTRA: added the challenge radiation shelter to the existing scene.");
     }
 
     private static void ConfigureProject()
@@ -190,6 +210,7 @@ public static class AstraSceneBuilder
         BuildOxygenProcessor(baseRoot.transform, new Vector3(-16f, 0f, -12f));
         BuildWaterRecycler(baseRoot.transform, new Vector3(16f, 0f, -12f));
         BuildResearchLab(baseRoot.transform, new Vector3(0f, 0f, 21f));
+        BuildRadiationShelter(baseRoot.transform, new Vector3(-8f, 0f, 19f));
         AddBeacon(baseRoot.transform, new Vector3(0f, 0f, 10f), new Color(0.1f, 0.86f, 1f));
         AddBeacon(baseRoot.transform, new Vector3(-10f, 0f, 5f), new Color(0.1f, 0.86f, 1f));
         AddBeacon(baseRoot.transform, new Vector3(10f, 0f, 5f), new Color(0.25f, 1f, 0.69f));
@@ -199,6 +220,7 @@ public static class AstraSceneBuilder
         AddBeacon(baseRoot.transform, new Vector3(-16f, 0f, -12f), new Color(0.22f, 0.72f, 1f));
         AddBeacon(baseRoot.transform, new Vector3(16f, 0f, -12f), new Color(0.16f, 0.92f, 0.84f));
         AddBeacon(baseRoot.transform, new Vector3(0f, 0f, 21f), new Color(0.65f, 0.55f, 1f));
+        AddBeacon(baseRoot.transform, new Vector3(-8f, 0f, 19f), new Color(0.8f, 0.55f, 1f));
         BuildLandingPad(baseRoot.transform, new Vector3(0f, 0f, -1f));
     }
 
@@ -263,10 +285,57 @@ public static class AstraSceneBuilder
     {
         GameObject manager = new GameObject("ASTRA GAME SYSTEMS");
         manager.AddComponent<AstraResourceManager>();
+        manager.AddComponent<PlayerSettingsManager>();
+        manager.AddComponent<LanguageManager>();
+        manager.AddComponent<AccessibilityManager>();
+        manager.AddComponent<AudioSource>();
+        manager.AddComponent<VoiceGuideManager>();
+        manager.AddComponent<VisualHintManager>();
+        manager.AddComponent<TutorialManager>();
+        manager.AddComponent<OnboardingManager>();
         manager.AddComponent<AstraGameManager>();
         GameObject hud = new GameObject("ASTRA HUD SYSTEM");
         hud.AddComponent<AstraHUD>();
+        hud.AddComponent<AstraOnboardingUI>();
     }
+
+    private static void BuildPracticeDeck()
+    {
+        GameObject practice = new GameObject("ASTRO SAFE PRACTICE DECK");
+        MakePrimitive(PrimitiveType.Cylinder, "Practice platform", practice.transform, new Vector3(0f, -0.02f, 1.2f),
+            new Vector3(10f, 0.08f, 5.6f), new Color(0.16f, 0.29f, 0.34f));
+
+        AstraInteractable comms = Facility(practice.transform, "Practice Communications", FacilityType.Communications,
+            "Practice Communications Panel", "A safe practice button. It does not change mission systems.", new Vector3(-5.2f, 0f, 0.7f), new Vector3(0.7f, 1.5f, 0.8f));
+        MakePrimitive(PrimitiveType.Cube, "Practice comms pedestal", comms.transform, new Vector3(0f, 0.68f, 0f), new Vector3(1.25f, 1.25f, 0.78f), new Color(0.42f, 0.56f, 0.62f));
+        MakePrimitive(PrimitiveType.Cube, "Practice comms button", comms.transform, new Vector3(0f, 1.32f, 0.42f), new Vector3(0.44f, 0.3f, 0.12f), new Color(0.12f, 0.70f, 0.85f), 0.2f, new Color(0.04f, 0.48f, 0.72f));
+
+        AstraInteractable solar = Facility(practice.transform, "Practice Solar", FacilityType.SolarArray,
+            "Practice Solar Panel", "A safe practice panel. It lights up when you use it.", new Vector3(5.2f, 0f, 0.7f), new Vector3(0.8f, 1.4f, 0.8f));
+        MakePrimitive(PrimitiveType.Cube, "Practice solar stand", solar.transform, new Vector3(0f, 0.55f, 0f), new Vector3(0.32f, 1.1f, 0.32f), new Color(0.58f, 0.64f, 0.66f));
+        MakePrimitive(PrimitiveType.Cube, "Practice solar panel", solar.transform, new Vector3(0f, 1.25f, 0f), new Vector3(2.0f, 0.12f, 1.25f), new Color(0.08f, 0.26f, 0.52f), 0.35f, new Color(0.04f, 0.18f, 0.42f));
+
+        GameObject robot = new GameObject("ASTRO - Robot Companion");
+        robot.transform.position = new Vector3(-2.55f, 0f, 2.7f);
+        Transform body = MakePrimitive(PrimitiveType.Sphere, "ASTRO round body", robot.transform, new Vector3(0f, 0.67f, 0f), new Vector3(0.78f, 0.83f, 0.62f), new Color(0.36f, 0.72f, 0.79f), 0.15f, new Color(0.08f, 0.40f, 0.48f)).transform;
+        Transform head = MakePrimitive(PrimitiveType.Sphere, "ASTRO friendly head", robot.transform, new Vector3(0f, 1.25f, 0.03f), new Vector3(0.86f, 0.7f, 0.72f), new Color(0.62f, 0.83f, 0.86f)).transform;
+        MakePrimitive(PrimitiveType.Sphere, "ASTRO left eye", robot.transform, new Vector3(-0.2f, 1.31f, 0.36f), Vector3.one * 0.1f, new Color(0.08f, 0.24f, 0.34f), 0.2f, new Color(0.1f, 0.8f, 1f));
+        GameObject eyes = MakePrimitive(PrimitiveType.Sphere, "ASTRO right eye", robot.transform, new Vector3(0.2f, 1.31f, 0.36f), Vector3.one * 0.1f, new Color(0.08f, 0.24f, 0.34f), 0.2f, new Color(0.1f, 0.8f, 1f));
+        MakePrimitive(PrimitiveType.Sphere, "ASTRO smile", robot.transform, new Vector3(0f, 1.08f, 0.365f), new Vector3(0.20f, 0.045f, 0.045f), new Color(0.08f, 0.24f, 0.34f));
+        MakePrimitive(PrimitiveType.Sphere, "ASTRO antenna light", robot.transform, new Vector3(0f, 1.73f, 0f), Vector3.one * 0.17f, new Color(1f, 0.75f, 0.23f), 0.2f, new Color(1f, 0.58f, 0.1f));
+        Transform arm = CreateSuitLimb(robot.transform, "ASTRO pointing arm", new Vector3(0.48f, 0.87f, 0f));
+        MakePrimitive(PrimitiveType.Capsule, "ASTRO arm", arm, new Vector3(0.16f, 0f, 0f), new Vector3(0.22f, 0.25f, 0.22f), new Color(0.55f, 0.79f, 0.83f));
+        GameObject fingertip = MakePrimitive(PrimitiveType.Sphere, "ASTRO finger light", arm, new Vector3(0.33f, 0.02f, 0.02f), Vector3.one * 0.14f, Gold(), 0.2f, Gold());
+        AstroCompanionController companion = robot.AddComponent<AstroCompanionController>();
+        SerializedObject astroData = new SerializedObject(companion);
+        astroData.FindProperty("body").objectReferenceValue = body;
+        astroData.FindProperty("head").objectReferenceValue = head;
+        astroData.FindProperty("pointingArm").objectReferenceValue = arm;
+        astroData.FindProperty("eyeGlow").objectReferenceValue = eyes.GetComponent<Renderer>();
+        astroData.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static Color Gold() => new Color(1f, 0.76f, 0.24f);
 
     private static void BuildHabitat(Transform parent, Vector3 position)
     {
@@ -370,6 +439,16 @@ public static class AstraSceneBuilder
         MakePrimitive(PrimitiveType.Cube, "Lab observation window", facility.transform, new Vector3(0f, 1.65f, 1.58f), new Vector3(1.55f, 0.72f, 0.08f), new Color(0.12f, 0.38f, 0.54f), 0.35f, new Color(0.02f, 0.10f, 0.20f));
         MakePrimitive(PrimitiveType.Cube, "Sample analysis console", facility.transform, new Vector3(1.2f, 0.67f, 0.8f), new Vector3(0.95f, 1.25f, 0.78f), new Color(0.23f, 0.31f, 0.39f), 0.28f);
         MakePrimitive(PrimitiveType.Sphere, "Sample containment vessel", facility.transform, new Vector3(1.2f, 1.45f, 0.8f), new Vector3(0.4f, 0.4f, 0.4f), new Color(0.88f, 0.66f, 0.32f), 0.1f, new Color(0.24f, 0.12f, 0.03f));
+    }
+
+    private static void BuildRadiationShelter(Transform parent, Vector3 position)
+    {
+        AstraInteractable facility = Facility(parent, "Radiation Shelter", FacilityType.RadiationShelter,
+            "Radiation shelter", "Prepare a crew shelter for a simulated solar-particle alert. This simplified mechanic is not a radiation-dose prediction.", position, new Vector3(3.8f, 2.6f, 3.8f));
+        MakePrimitive(PrimitiveType.Cube, "Shelter module", facility.transform, new Vector3(0f, 1.25f, 0f), new Vector3(4.3f, 2.4f, 4.1f), new Color(0.38f, 0.43f, 0.53f));
+        MakePrimitive(PrimitiveType.Cube, "Shelter access door", facility.transform, new Vector3(0f, 0.86f, 2.08f), new Vector3(1.3f, 1.7f, 0.08f), new Color(0.12f, 0.72f, 0.79f), 0.12f, new Color(0.04f, 0.34f, 0.45f));
+        MakePrimitive(PrimitiveType.Cube, "Regolith shielding berm", facility.transform, new Vector3(-2.5f, 0.48f, 0f), new Vector3(0.55f, 0.95f, 4.6f), new Color(0.43f, 0.40f, 0.34f));
+        MakePrimitive(PrimitiveType.Cube, "Regolith shielding berm", facility.transform, new Vector3(2.5f, 0.48f, 0f), new Vector3(0.55f, 0.95f, 4.6f), new Color(0.43f, 0.40f, 0.34f));
     }
 
     private static AstraInteractable Facility(Transform parent, string objectName, FacilityType type, string title, string description, Vector3 position, Vector3 colliderSize)

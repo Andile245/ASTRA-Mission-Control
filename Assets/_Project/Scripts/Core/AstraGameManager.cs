@@ -1,5 +1,8 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace Astra
 {
@@ -13,6 +16,10 @@ namespace Astra
         public float food => resources != null ? resources.Food : 100f;
         public float power => resources != null ? resources.Power : 82f;
         public float habitatCondition => resources != null ? resources.HabitatCondition : 100f;
+        public float radiationExposureIndex { get; private set; }
+        public bool shelterPrepared { get; private set; }
+        public bool foodHarvested { get; private set; }
+        public string DonkiSummary { get; private set; } = "Loading NASA DONKI solar-particle event context…";
 
         public bool communicationsOnline { get; private set; }
         public bool solarOnline { get; private set; }
@@ -26,7 +33,9 @@ namespace Astra
 
         public IReadOnlyList<MissionObjective> Objectives => objectives;
         public AstraResourceManager Resources => resources;
-        public bool CanControlPlayer => missionStarted && !missionPaused && !missionFinished && !eventOpen;
+        public bool CanControlPlayer =>
+            (missionStarted && !missionPaused && !missionFinished && !eventOpen) ||
+            (OnboardingManager.Instance != null && OnboardingManager.Instance.AllowPlayerControl);
         public bool EventOpen => eventOpen;
         public string LatestMessage { get; private set; } = "Outpost systems awaiting crew inspection.";
         public string EventFeedback { get; private set; } = string.Empty;
@@ -36,7 +45,9 @@ namespace Astra
             new MissionObjective("Activate the communications station"),
             new MissionObjective("Bring the solar array online"),
             new MissionObjective("Inspect life-support systems"),
-            new MissionObjective("Resolve the power shortage"),
+            new MissionObjective("Prepare the radiation shelter"),
+            new MissionObjective("Grow and harvest a food batch"),
+            new MissionObjective("Respond to the solar-particle drill"),
             new MissionObjective("Collect a virtual sample with the rover")
         };
 
@@ -45,6 +56,9 @@ namespace Astra
         private bool eventOpen;
         private bool safeDecision;
         private bool failure;
+        private bool foodCycleStarted;
+        private bool foodBatchReady;
+        private float foodCycleElapsed;
 
         private void Awake()
         {
@@ -70,8 +84,18 @@ namespace Astra
                 resourceTick -= 10f;
                 TickResources();
             }
-            if (!eventOpen && !eventResolved && communicationsOnline && solarOnline && missionSeconds >= 28f)
-                OpenPowerEvent();
+            if (foodCycleStarted && !foodBatchReady && !foodHarvested)
+            {
+                foodCycleElapsed += Time.deltaTime;
+                if (foodCycleElapsed >= 20f)
+                {
+                    foodBatchReady = true;
+                    LatestMessage = "Greenhouse crop cycle is ready. Return to the greenhouse to harvest it. This is a shortened game cycle.";
+                    hud?.ShowMessage(LatestMessage);
+                }
+            }
+            if (!eventOpen && !eventResolved && communicationsOnline && solarOnline && missionSeconds >= 55f)
+                OpenRadiationDrill();
             if (oxygen <= 0f || water <= 0f || habitatCondition <= 0f)
                 FailMission();
         }
@@ -83,6 +107,7 @@ namespace Astra
             missionPaused = false;
             missionSeconds = 0f;
             resourceTick = 0f;
+            StartCoroutine(LoadDonkiContext());
             LatestMessage = "Mission clock started. Proceed to the communications station.";
             hud?.SetIntroVisible(false);
             hud?.SetPauseVisible(false);
@@ -102,6 +127,16 @@ namespace Astra
         {
             AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
+            if (OnboardingManager.Instance != null && OnboardingManager.Instance.IsPracticeActive)
+            {
+                if (nearest == null)
+                {
+                    VoiceGuideManager.Instance?.Say("tutorial.interact.body", "Walk to the glowing practice panel and press the interaction key.", "hint_interact", true);
+                    return;
+                }
+                OnboardingManager.Instance.HandlePracticeInteraction(nearest);
+                return;
+            }
             if (nearest == null)
             {
                 hud?.ShowMessage("No facility in range. Follow the cyan markers.");
@@ -152,11 +187,43 @@ namespace Astra
                     LatestMessage = "Habitat seal inspection complete. Condition is " + Mathf.RoundToInt(habitatCondition) + "%.";
                     break;
                 case FacilityType.Greenhouse:
-                    if (!TrySpendPower(5f)) LatestMessage = "Insufficient power for the greenhouse harvest. Bring the solar array online.";
+                    if (foodHarvested)
+                        LatestMessage = "The greenhouse batch has been harvested. The CSA learning link is in BRIEFING / SCIENCE.";
+                    else if (foodBatchReady)
+                    {
+                        resources.AddFood(18f);
+                        foodHarvested = true;
+                        foodBatchReady = false;
+                        CompleteObjective(4);
+                        LatestMessage = "Food batch harvested: food +18 game units. The crop cycle cost water and power; these values are fictional.";
+                    }
+                    else if (foodCycleStarted)
+                    {
+                        LatestMessage = "The crop is growing. Return when the greenhouse indicator says the batch is ready.";
+                    }
+                    else if (resources.Power < 8f || resources.Water < 8f)
+                    {
+                        LatestMessage = "A crop cycle needs 8 game power and 8 game water. Restore reserves, then try again.";
+                    }
                     else
                     {
-                        resources.AddFood(12f);
-                        LatestMessage = "Greenhouse harvest logged: food +12, power −5. These are game values.";
+                        resources.TrySpendPower(8f);
+                        resources.TrySpendWater(8f);
+                        foodCycleStarted = true;
+                        foodCycleElapsed = 0f;
+                        LatestMessage = "Crop cycle started: 8 game water and 8 game power committed. Return after the shortened 20-second game cycle.";
+                    }
+                    break;
+                case FacilityType.RadiationShelter:
+                    if (shelterPrepared)
+                        LatestMessage = "Shelter is prepared. Using it during the simulated solar-particle drill costs less power and lowers ASTRA's fictional exposure index.";
+                    else if (!TrySpendPower(8f))
+                        LatestMessage = "Shelter preparation needs 8 game power. Bring the solar array online first.";
+                    else
+                    {
+                        shelterPrepared = true;
+                        CompleteObjective(3);
+                        LatestMessage = "Radiation shelter prepared. Regolith can help shield a shelter, but this game does not calculate real dose or shielding performance.";
                     }
                     break;
                 case FacilityType.OxygenProcessor:
@@ -184,6 +251,16 @@ namespace Astra
                         LatestMessage = "Stabilize the outpost before starting the rover sample run.";
                         break;
                     }
+                    if (!shelterPrepared)
+                    {
+                        LatestMessage = "Prepare the radiation shelter before the rover leaves. Visit the marked Radiation Shelter.";
+                        break;
+                    }
+                    if (!foodHarvested)
+                    {
+                        LatestMessage = "Complete the greenhouse crop cycle and harvest food before launching the rover.";
+                        break;
+                    }
                     if (!sampleCollected)
                     {
                         if (!TrySpendPower(6f))
@@ -192,7 +269,7 @@ namespace Astra
                             break;
                         }
                         sampleCollected = true;
-                        CompleteObjective(4);
+                        CompleteObjective(6);
                         LatestMessage = "Virtual regolith sample secured. Rover telemetry uploaded to the lab.";
                         FinishMission();
                     }
@@ -222,39 +299,45 @@ namespace Astra
 
         private bool TrySpendPower(float amount) => resources.TrySpendPower(amount);
 
-        private void OpenPowerEvent()
+        private void OpenRadiationDrill()
         {
             eventOpen = true;
             missionPaused = true;
-            resources.AddPower(-14f);
             EventFeedback = string.Empty;
-            LatestMessage = "Power fluctuation detected. Review the alert and choose a response.";
+            LatestMessage = "Training alert: simulated solar-particle event. Review the NASA data context, then choose a response.";
             hud?.SetEventVisible(true);
             hud?.SetCursorForMission(false);
         }
 
-        public void ResolvePowerEvent(bool shedNonessentialLoad)
+        public void ResolveRadiationDrill(bool shelterCrew)
         {
             if (!eventOpen) return;
-            eventOpen = false;
-            eventResolved = true;
-            missionPaused = false;
-            safeDecision = shedNonessentialLoad;
-            if (shedNonessentialLoad)
+            if (shelterCrew)
             {
-                resources.AddPower(14f);
-                resources.AddFood(-4f);
-                EventFeedback = "Good call. Pausing a nonessential load protects life support while the array recovers. Food production briefly slows.";
-                LatestMessage = "Power stabilized by shedding greenhouse load. Life support remains prioritized.";
+                float powerCost = shelterPrepared ? 6f : 18f;
+                if (!TrySpendPower(powerCost))
+                {
+                    LatestMessage = "Not enough game power to move the crew to shelter. Choose continue outside, or restart and prepare more power.";
+                    hud?.ShowMessage(LatestMessage);
+                    return;
+                }
+                radiationExposureIndex = Mathf.Min(100f, radiationExposureIndex + (shelterPrepared ? 5f : 15f));
+                resources.AddFood(-3f);
+                safeDecision = true;
+                EventFeedback = "Sheltering costs power and briefly interrupts greenhouse work. In this fictional drill, the prepared shelter adds less to the exposure index. The index is not a measured dose.";
+                LatestMessage = "Crew sheltered. Power was used and food work paused during the training scenario.";
             }
             else
             {
-                resources.AddPower(-18f);
-                resources.DamageHabitat(12f);
-                EventFeedback = "The full-system restart consumed reserve power. On a real outpost, crews would prioritize critical life-support loads.";
-                LatestMessage = "Systems restarted, but reserve power and habitat condition fell.";
+                radiationExposureIndex = Mathf.Min(100f, radiationExposureIndex + 30f);
+                resources.DamageHabitat(8f);
+                EventFeedback = "The crew remained outside to keep tasks running. The training scenario adds more to its fictional exposure index. DONKI events are not lunar radiation-dose readings.";
+                LatestMessage = "Outside operations continued during the simulated event. Check the exposure index in the science briefing.";
             }
-            CompleteObjective(3);
+            eventOpen = false;
+            eventResolved = true;
+            missionPaused = false;
+            CompleteObjective(5);
             hud?.SetEventVisible(false);
             hud?.SetCursorForMission(true);
             hud?.ShowMessage(EventFeedback);
@@ -301,10 +384,46 @@ namespace Astra
 
         private string BuildLearningSummary()
         {
-            if (failure) return "Life-support supplies and habitat condition are connected. Monitor the dashboard and act before critical reserves are exhausted.";
-            return safeDecision
-                ? "Outposts balance limited power across critical and nonessential systems. Protecting life support can mean temporarily reducing another system's output."
-                : "Outpost systems compete for limited power. Prioritizing life support helps protect crew safety while nonessential loads can be reduced.";
+            string science = "Food growing used water and power; the Canadian Space Agency youth food-production toolkit explains why growing food for spaceflight is challenging. NASA DONKI records solar-particle events, but does not provide this lunar shelter's dose. ASTRA's exposure index and costs are fictional game values.";
+            if (failure) return "Life-support supplies and habitat condition are connected. Monitor reserves and shelter choices. " + science;
+            return (safeDecision
+                ? "You used shelter at a power and food cost, trading resources for a lower simulated exposure index. "
+                : "You kept operations running but accepted a higher simulated exposure index. ") + science;
+        }
+
+        [Serializable] private class DonkiSepEvent { public string activityID; public string eventTime; public string link; }
+        [Serializable] private class DonkiSepList { public DonkiSepEvent[] items; }
+
+        private IEnumerator LoadDonkiContext()
+        {
+            DateTime end = DateTime.UtcNow.Date;
+            DateTime start = end.AddDays(-30);
+            string startText = start.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            string endText = end.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            string url = "https://ccmc.gsfc.nasa.gov/DONKI-API/get/SEP?startDate=" + startText + "&endDate=" + endText;
+            using (UnityWebRequest request = UnityWebRequest.Get(url))
+            {
+                request.timeout = 8;
+                yield return request.SendWebRequest();
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    DonkiSummary = "NASA DONKI is offline or unavailable. The alert remains a fictional practice scenario; no live data is substituted.";
+                    yield break;
+                }
+                try
+                {
+                    string json = request.downloadHandler.text;
+                    DonkiSepList parsed = JsonUtility.FromJson<DonkiSepList>("{\"items\":" + json + "}");
+                    DonkiSepEvent[] events = parsed != null ? parsed.items : null;
+                    int count = events != null ? events.Length : 0;
+                    string latest = count > 0 ? " Latest record: " + events[count - 1].activityID + " at " + events[count - 1].eventTime + "." : " No SEP records were returned for this interval.";
+                    DonkiSummary = "NASA DONKI SEP records, " + startText + " to " + endText + ": " + count + "." + latest + " These are solar-event records, not radiation dose at the Moon or a crew-health forecast.";
+                }
+                catch (Exception)
+                {
+                    DonkiSummary = "NASA DONKI request returned data that ASTRA could not read. The alert remains a fictional practice scenario.";
+                }
+            }
         }
 
         public void SetPausedFromHud(bool paused)

@@ -10,7 +10,8 @@ namespace Astra
         OxygenProcessor,
         WaterRecycler,
         ResearchLab,
-        Rover
+        Rover,
+        RadiationShelter
     }
 
     [System.Serializable]

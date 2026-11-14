@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 
 namespace Astra
 {
@@ -25,6 +26,8 @@ namespace Astra
         private float moveAmount;
         private bool sprinting;
         private Vector3 cameraVelocity;
+        private Vector3 clickMoveTarget;
+        private bool hasClickMoveTarget;
 
         public float MoveAmount => moveAmount;
         public bool IsSprinting => sprinting;
@@ -63,13 +66,37 @@ namespace Astra
                 Vector2 delta = Mouse.current.delta.ReadValue();
                 yaw += delta.x * mouseSensitivity;
                 pitch = Mathf.Clamp(pitch - delta.y * mouseSensitivity, 8f, 45f);
+                if (delta.sqrMagnitude > 1f) TutorialManager.Instance?.RecordLook(delta.magnitude);
             }
 
             Vector2 move = Vector2.zero;
-            if (Keyboard.current.wKey.isPressed) move.y += 1f;
-            if (Keyboard.current.sKey.isPressed) move.y -= 1f;
-            if (Keyboard.current.dKey.isPressed) move.x += 1f;
-            if (Keyboard.current.aKey.isPressed) move.x -= 1f;
+            PlayerSettingsManager settings = PlayerSettingsManager.Instance;
+            Key forward = settings != null ? settings.GetKey(AstraBinding.MoveForward) : Key.W;
+            Key back = settings != null ? settings.GetKey(AstraBinding.MoveBack) : Key.S;
+            Key left = settings != null ? settings.GetKey(AstraBinding.MoveLeft) : Key.A;
+            Key right = settings != null ? settings.GetKey(AstraBinding.MoveRight) : Key.D;
+            if (Keyboard.current[forward].isPressed || Keyboard.current.upArrowKey.isPressed) move.y += 1f;
+            if (Keyboard.current[back].isPressed || Keyboard.current.downArrowKey.isPressed) move.y -= 1f;
+            if (Keyboard.current[right].isPressed || Keyboard.current.rightArrowKey.isPressed) move.x += 1f;
+            if (Keyboard.current[left].isPressed || Keyboard.current.leftArrowKey.isPressed) move.x -= 1f;
+
+            if (settings != null && settings.ClickToMove && Mouse.current.leftButton.wasPressedThisFrame &&
+                (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
+            {
+                Camera clickCamera = followCamera != null ? followCamera : Camera.main;
+                if (clickCamera != null)
+                {
+                    Ray clickRay = clickCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
+                    if (Physics.Raycast(clickRay, out RaycastHit groundHit, 240f)) { clickMoveTarget = groundHit.point; hasClickMoveTarget = true; }
+                }
+            }
+            if (hasClickMoveTarget && move.sqrMagnitude < 0.001f)
+            {
+                Vector3 toClick = clickMoveTarget - transform.position;
+                toClick.y = 0f;
+                if (toClick.magnitude < 0.45f) hasClickMoveTarget = false;
+                else move = Vector2.ClampMagnitude(new Vector2(toClick.x, toClick.z), 1f);
+            }
             move = Vector2.ClampMagnitude(move, 1f);
             moveAmount = move.magnitude;
 
@@ -86,11 +113,14 @@ namespace Astra
             }
             else verticalSpeed -= LunarGravity * Time.deltaTime;
 
+            Vector3 previousPosition = transform.position;
             controller.Move((direction * speed + Vector3.up * verticalSpeed) * Time.deltaTime);
+            TutorialManager.Instance?.RecordMovement(Vector3.Distance(previousPosition, transform.position));
             if (direction.sqrMagnitude > 0.02f)
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), 12f * Time.deltaTime);
 
-            if (Keyboard.current.eKey.wasPressedThisFrame)
+            Key interact = settings != null ? settings.GetKey(AstraBinding.Interact) : Key.E;
+            if (Keyboard.current[interact].wasPressedThisFrame)
                 game.TryInteract(transform.position);
 
         }
@@ -152,6 +182,19 @@ namespace Astra
                 }
             }
             return nearest;
+        }
+
+        public void ResetForMission()
+        {
+            hasClickMoveTarget = false;
+            verticalSpeed = 0f;
+            controller.enabled = false;
+            transform.position = new Vector3(0f, 0.05f, -1.5f);
+            transform.rotation = Quaternion.identity;
+            controller.enabled = true;
+            cameraVelocity = Vector3.zero;
+            yaw = 0f;
+            pitch = 18f;
         }
     }
 }

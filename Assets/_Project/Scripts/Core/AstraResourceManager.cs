@@ -65,6 +65,12 @@ namespace Astra
         public void AddWater(float amount) => water = Mathf.Clamp(water + amount, 0f, 100f);
         public void AddFood(float amount) => food = Mathf.Clamp(food + amount, 0f, 100f);
         public void AddPower(float amount) => power = Mathf.Clamp(power + amount, 0f, 100f);
+        public bool TrySpendWater(float amount)
+        {
+            if (amount < 0f || water < amount) return false;
+            water = Mathf.Max(0f, water - amount);
+            return true;
+        }
         public void DamageHabitat(float amount) => habitatCondition = Mathf.Max(0f, habitatCondition - amount);
         public void RepairHabitat(float amount) => habitatCondition = Mathf.Clamp(habitatCondition + amount, 0f, 100f);
     }

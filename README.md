@@ -9,9 +9,9 @@ Open `Prototype/index.html` in a browser for the offline isometric demo. It has 
 ## First playable loop
 
 - Explore a stylized 3D lunar outpost in third person.
-- Activate communications and a solar array, inspect life support, and collect a virtual sample with the rover.
+- Activate communications and a solar array, inspect life support, prepare a radiation shelter, grow/harvest food, respond to a practice solar-particle alert, and collect a virtual sample with the rover.
 - Monitor oxygen, water, food, power, and habitat condition.
-- Respond to a simulated power shortage and review the mission score and learning feedback.
+- Balance power, water, greenhouse food production, and sheltering costs. Review the live NASA DONKI SEP event context (when online), then see the simulation limits and challenge sources in the science briefing and debrief.
 
 Controls: **WASD** move, **Shift** sprint, **Space** hop, **right mouse drag** look, **E** interact, **Escape** pause. Walk up to the cyan/green/orange facility beacons until the interaction card appears.
 
@@ -35,6 +35,8 @@ Assets/
 ## Generate / regenerate the scene
 
 In Unity, select **ASTRA > Build First Playable Scene**. This creates the lunar environment, outpost facilities, astronaut, mission manager, HUD and the `ASTRA_Bootstrap` scene, and adds it to the Windows build scene list. If the project is not yet open in Unity, use Unity Hub to add the folder at the project root.
+
+To update only the added challenge shelter in an existing scene, select **ASTRA > Upgrade Challenge Facilities**. To regenerate the full environment, select **ASTRA > Build First Playable Scene**. To make a Windows player after scripts compile, select **ASTRA > Build Windows Player**. The repeatable build command writes the executable and its Unity data folder to `Builds/Windows/`.
 
 ## Phase 1 and prototype verification
 
