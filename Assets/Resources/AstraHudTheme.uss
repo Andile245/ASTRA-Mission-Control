@@ -52,6 +52,36 @@
     border-left-color: rgb(22, 210, 244);
 }
 
+.mission-radar {
+    position: absolute;
+    left: 430px;
+    bottom: 10%;
+    width: 164px;
+    height: 164px;
+    overflow: hidden;
+    border-radius: 82px;
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 2px;
+    border-bottom-width: 2px;
+    border-left-color: rgba(48, 224, 255, 0.9);
+    border-right-color: rgba(48, 224, 255, 0.9);
+    border-top-color: rgba(48, 224, 255, 0.9);
+    border-bottom-color: rgba(48, 224, 255, 0.9);
+    background-color: rgba(2, 21, 39, 0.88);
+}
+.radar-axis-vertical { position: absolute; left: 50%; top: 14%; bottom: 14%; width: 1px; background-color: rgba(103, 190, 215, 0.35); }
+.radar-axis-horizontal { position: absolute; top: 50%; left: 14%; right: 14%; height: 1px; background-color: rgba(103, 190, 215, 0.35); }
+.radar-north, .radar-east, .radar-south, .radar-west { position: absolute; width: 18px; height: 16px; color: rgb(205, 236, 248); -unity-font-style: bold; -unity-text-align: middle-center; }
+.radar-north { top: 2px; left: 50%; margin-left: -9px; color: rgb(43, 231, 255); }
+.radar-east { right: 3px; top: 50%; margin-top: -8px; }
+.radar-south { bottom: 2px; left: 50%; margin-left: -9px; }
+.radar-west { left: 3px; top: 50%; margin-top: -8px; }
+.radar-player { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin-left: -5px; margin-top: -5px; border-radius: 5px; background-color: rgb(255, 255, 255); border-left-width: 2px; border-right-width: 2px; border-top-width: 2px; border-bottom-width: 2px; border-left-color: rgb(28, 220, 255); border-right-color: rgb(28, 220, 255); border-top-color: rgb(28, 220, 255); border-bottom-color: rgb(28, 220, 255); }
+.radar-facility-marker { position: absolute; width: 32px; height: 17px; margin-left: -16px; margin-top: -8px; align-items: center; justify-content: center; background-color: rgba(7, 48, 70, 0.94); border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-left-color: rgb(255, 195, 73); border-right-color: rgb(255, 195, 73); border-top-color: rgb(255, 195, 73); border-bottom-color: rgb(255, 195, 73); }
+.radar-facility-code { color: rgb(255, 231, 178); font-size: 8px; -unity-font-style: bold; -unity-text-align: middle-center; }
+.radar-legend { position: absolute; bottom: 17px; left: 0; right: 0; color: rgb(157, 195, 219); -unity-text-align: middle-center; -unity-font-style: bold; }
+
 .hud-resource-tile {
     flex-grow: 1;
     min-width: 0;

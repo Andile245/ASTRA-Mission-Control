@@ -24,7 +24,8 @@ namespace Astra
         private PanelSettings runtimePanelSettings;
         private Volume runtimeLookVolume;
         private VolumeProfile runtimeLookProfile;
-        private VisualElement root, hudLayer, topBar, resourceBar, objectivesPanel, objectiveListPanel, touchControls;
+        private VisualElement root, hudLayer, topBar, resourceBar, objectivesPanel, objectiveListPanel, touchControls, missionMap;
+        private readonly Dictionary<Transform, VisualElement> missionMapMarkers = new Dictionary<Transform, VisualElement>();
         private VisualElement bottomBar, facilityPanel, resourceAlertPanel, messageBanner;
         private VisualElement introPanel, tutorialPanel, pausePanel, reportPanel, briefingPanel, eventPanel, stormPanel;
         private readonly Dictionary<TextElement, float> baseTextSizes = new Dictionary<TextElement, float>();
@@ -74,6 +75,7 @@ namespace Astra
             refreshClock = 0f;
             Refresh(game);
             UpdateFacilityPrompt();
+            UpdateMissionMap();
         }
 
         private void OnDestroy()
@@ -130,8 +132,17 @@ namespace Astra
         {
             if (built) return;
             built = true;
-            if (EventSystem.current == null)
-                new GameObject("ASTRA Event System", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            EventSystem uiEventSystem = EventSystem.current;
+            if (uiEventSystem == null)
+                uiEventSystem = new GameObject("ASTRA Event System", typeof(EventSystem)).GetComponent<EventSystem>();
+            // A scene may contain an EventSystem configured for legacy uGUI only.
+            // UI Toolkit still needs the Input System UI module for pointer clicks,
+            // controller submit, and the in-game touch buttons.
+            InputSystemUIInputModule uiInput = uiEventSystem.GetComponent<InputSystemUIInputModule>();
+            if (uiInput == null) uiInput = uiEventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+            if (uiInput.actionsAsset == null) uiInput.AssignDefaultActions();
+            foreach (BaseInputModule inputModule in uiEventSystem.GetComponents<BaseInputModule>())
+                if (inputModule != uiInput) inputModule.enabled = false;
             GameObject documentObject = new GameObject("ASTRA Gameplay UI Toolkit");
             documentObject.transform.SetParent(transform, false);
             document = documentObject.AddComponent<UIDocument>();
@@ -222,6 +233,7 @@ namespace Astra
             BuildResource(resourceBar, "▤   FOOD", "food");
             BuildResource(resourceBar, "ϟ   POWER", "power");
             hudLayer.Add(resourceBar);
+            BuildMissionMap();
 
             objectivesPanel = Card(hudLayer, "hud-objectives");
             VisualElement missionTitleRow = new VisualElement();
@@ -244,6 +256,7 @@ namespace Astra
             progressFillElement.AddToClassList("hud-progress-fill");
             progressTrack.Add(progressFillElement);
             objectivesPanel.Add(progressTrack);
+            AddButton(objectivesPanel, "OPEN CHECKLIST  /  V", ToggleObjectiveList, false, "hud-open-checklist");
 
             bottomBar = new VisualElement();
             bottomBar.AddToClassList("hud-bottombar");
@@ -287,6 +300,119 @@ namespace Astra
         }
 
         private VisualElement progressFillElement;
+
+        private void BuildMissionMap()
+        {
+            missionMap = new VisualElement { name = "mission-radar" };
+            missionMap.AddToClassList("mission-radar");
+            AddText(missionMap, "N", "radar-north", 12);
+            AddText(missionMap, "E", "radar-east", 12);
+            AddText(missionMap, "S", "radar-south", 12);
+            AddText(missionMap, "W", "radar-west", 12);
+            VisualElement vertical = new VisualElement();
+            vertical.AddToClassList("radar-axis-vertical");
+            missionMap.Add(vertical);
+            VisualElement horizontal = new VisualElement();
+            horizontal.AddToClassList("radar-axis-horizontal");
+            missionMap.Add(horizontal);
+            VisualElement playerDot = new VisualElement();
+            playerDot.AddToClassList("radar-player");
+            missionMap.Add(playerDot);
+            AddText(missionMap, "MISSION EQUIPMENT", "radar-legend", 9);
+            hudLayer.Add(missionMap);
+            missionMap.style.display = DisplayStyle.None;
+        }
+
+        private void UpdateMissionMap()
+        {
+            if (missionMap == null || game == null) return;
+            bool show = game.missionStarted && !game.missionFinished;
+            SetVisible(missionMap, show);
+            if (!show) return;
+
+            AstraPlayerController player = FindAnyObjectByType<AstraPlayerController>();
+            if (player == null) return;
+            AstraInteractable[] facilities = FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None);
+            HashSet<Transform> active = new HashSet<Transform>();
+            foreach (AstraInteractable facility in facilities)
+            {
+                if (facility == null || !IsMissionMapFacility(facility.facilityType, game.CurrentMission)) continue;
+                SetMissionMapMarker(facility.transform, FacilityMapCode(facility.facilityType), player.transform, active);
+            }
+
+            AstraRoverDrive rover = FindAnyObjectByType<AstraRoverDrive>();
+            if (rover != null && rover.SampleSite != null && (game.CurrentMission == AstraMissionId.FirstLight || game.CurrentMission == AstraMissionId.ShadowScout))
+                SetMissionMapMarker(rover.SampleSite, "SMP", player.transform, active);
+
+            List<Transform> stale = null;
+            foreach (KeyValuePair<Transform, VisualElement> pair in missionMapMarkers)
+            {
+                if (pair.Key != null && active.Contains(pair.Key)) continue;
+                pair.Value.RemoveFromHierarchy();
+                if (stale == null) stale = new List<Transform>();
+                stale.Add(pair.Key);
+            }
+            if (stale != null)
+                foreach (Transform item in stale) missionMapMarkers.Remove(item);
+        }
+
+        private void SetMissionMapMarker(Transform target, string code, Transform player, HashSet<Transform> active)
+        {
+            if (target == null) return;
+            active.Add(target);
+            if (!missionMapMarkers.TryGetValue(target, out VisualElement marker))
+            {
+                marker = new VisualElement { name = "radar-" + code };
+                marker.AddToClassList("radar-facility-marker");
+                Label tag = new Label(code);
+                tag.AddToClassList("radar-facility-code");
+                marker.Add(tag);
+                missionMap.Add(marker);
+                missionMapMarkers.Add(target, marker);
+            }
+            Vector3 delta = target.position - player.position;
+            const float range = 45f;
+            marker.style.left = Length.Percent(50f + Mathf.Clamp(delta.x / range, -1f, 1f) * 38f);
+            marker.style.top = Length.Percent(50f - Mathf.Clamp(delta.z / range, -1f, 1f) * 38f);
+            marker.style.display = new Vector2(delta.x, delta.z).magnitude <= range ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private static bool IsMissionMapFacility(FacilityType type, AstraMissionId mission)
+        {
+            switch (mission)
+            {
+                case AstraMissionId.FirstLight:
+                    return type == FacilityType.Communications || type == FacilityType.SolarArray || type == FacilityType.LifeSupport || type == FacilityType.Rover || type == FacilityType.RadiationShelter;
+                case AstraMissionId.AirAndWater:
+                    return type == FacilityType.LifeSupport || type == FacilityType.SolarArray || type == FacilityType.WaterRecycler || type == FacilityType.OxygenProcessor;
+                case AstraMissionId.ShadowScout:
+                    return type == FacilityType.Rover || type == FacilityType.ResearchLab;
+                case AstraMissionId.StormWatch:
+                    return type == FacilityType.SpaceWeatherStation || type == FacilityType.RadiationShelter || type == FacilityType.Communications || type == FacilityType.LifeSupport || type == FacilityType.SolarArray;
+                case AstraMissionId.FoodForTheLongStay:
+                    return type == FacilityType.Greenhouse || type == FacilityType.LifeSupport || type == FacilityType.SolarArray || type == FacilityType.Habitat;
+                default: return false;
+            }
+        }
+
+        private static string FacilityMapCode(FacilityType type)
+        {
+            switch (type)
+            {
+                case FacilityType.Communications: return "COM";
+                case FacilityType.SolarArray: return "SOL";
+                case FacilityType.LifeSupport: return "LIFE";
+                case FacilityType.Rover: return "RVR";
+                case FacilityType.RadiationShelter: return "SAFE";
+                case FacilityType.WaterRecycler: return "H2O";
+                case FacilityType.OxygenProcessor: return "O2";
+                case FacilityType.SpaceWeatherStation: return "WX";
+                case FacilityType.Greenhouse: return "GH";
+                case FacilityType.Habitat: return "HAB";
+                case FacilityType.ResearchLab: return "LAB";
+                default: return "OBJ";
+            }
+        }
 
         private void BuildResource(VisualElement parent, string title, string key)
         {
@@ -497,7 +623,7 @@ namespace Astra
             }
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
             SetVisible(facilityPanel, game != null && game.CanControlPlayer && nearest != null);
-            if (nearest != null) facilityText.text = nearest.facilityName + "  ·  Press E / X / trigger to interact";
+            if (nearest != null) facilityText.text = nearest.facilityName + "  ·  Press E / X to inspect, choose, and act";
         }
 
         private void ShowTutorialStep(int step)

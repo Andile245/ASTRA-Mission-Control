@@ -251,12 +251,10 @@ namespace Astra
                 float distance = Vector3.Distance(transform.position, point);
                 if (distance <= facility.interactionRange && distance < nearestDistance)
                 {
-                    Vector3 origin = transform.position + Vector3.up * 1.1f;
-                    Vector3 towardFacility = point - origin;
-                    if (towardFacility.sqrMagnitude > 0.05f && Physics.Raycast(origin, towardFacility.normalized, out RaycastHit obstruction,
-                            towardFacility.magnitude, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) &&
-                        obstruction.transform != facility.transform && !obstruction.transform.IsChildOf(facility.transform))
-                        continue;
+                    // Use proximity instead of line-of-sight. Large imported dish,
+                    // rover, and habitat meshes often sit between the astronaut and
+                    // their root interaction collider; ray blocking made nearby
+                    // mission equipment report as unusable even when its prompt was shown.
                     nearest = facility;
                     nearestDistance = distance;
                 }

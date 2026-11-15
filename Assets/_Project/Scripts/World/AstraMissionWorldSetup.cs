@@ -105,15 +105,15 @@ namespace Astra
                     break;
                 case FacilityType.Communications:
                     primaryAsset = "NASADSN70mDish";
-                    targetHeight = 5.6f;
+                    // The source is a 70 m ground antenna. Keep it landmark sized
+                    // beside the crew scale habitat instead of letting the antenna
+                    // dominate the entire playable outpost.
+                    targetHeight = 2.8f;
                     break;
-                // NASA has no corresponding Mars surface weather console model.
-                // Keep the authored colored 3D console below instead of placing a
-                // communications satellite on the ground as a misleading substitute.
                 case FacilityType.SolarArray:
-                    primaryAsset = "NASALunarReconnaissanceOrbiter";
-                    targetHeight = 3.0f;
-                    break;
+                    // An orbiter is not a surface solar array. Keep the authored
+                    // articulated panel assembly and its interaction target visible.
+                    return false;
                 case FacilityType.Rover:
                     primaryAsset = activeDestination == AstraDestinationId.Mars ? "PerseveranceRover" : "SpaceExplorationVehicle";
                     targetHeight = 2.7f;
@@ -127,11 +127,10 @@ namespace Astra
                 case FacilityType.WaterRecycler:
                 case FacilityType.Greenhouse:
                 case FacilityType.ResearchLab:
-                    // NASA's ISS is the real, flown system containing ECLSS, water
-                    // recovery, oxygen generation, laboratories, and the Veggie garden.
-                    primaryAsset = "NASAInternationalSpaceStation";
-                    targetHeight = 3.8f;
-                    break;
+                    // The ISS is not a lunar surface facility. Preserve the authored
+                    // life-support/recycler/greenhouse equipment so players can see
+                    // and approach the correct mission-specific object.
+                    return false;
                 default:
                     return false;
             }
@@ -139,10 +138,9 @@ namespace Astra
             GameObject modelGroup = new GameObject("ASTRA NASA hardware");
             modelGroup.transform.SetParent(facility.transform, false);
             modelGroup.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            // Never show the temporary primitive blockout as if it were the NASA
-            // hardware. The facility interaction collider stays on the root while
-            // the imported geometry loads beneath this model group.
-            HideBlockoutFacility(facility, modelGroup.transform);
+            // Leave the authored facility visible until the imported model is
+            // confirmed instantiated. If the GLB is absent or fails to decode,
+            // players still see and can interact with the actual mission equipment.
             loader.LoadInto(primaryAsset, modelGroup.transform, targetHeight, primaryInstance =>
             {
                 if (primaryInstance == null) return;
@@ -196,6 +194,226 @@ namespace Astra
             AddPart(PrimitiveType.Cube, "Weather monitor status light", root.transform, new Vector3(0.54f, 0.96f, 0.59f),
                 new Vector3(0.14f, 0.14f, 0.06f), new Color(0.17f, 0.86f, 0.58f), new Color(0.05f, 0.62f, 0.30f));
             return interactable;
+        }
+
+        /// <summary>
+        /// Repairs mission equipment in scenes saved before all challenge assets were added.
+        /// A mission objective must always have a visible, collidable object to approach.
+        /// Existing authored or NASA imported models are preserved.
+        /// </summary>
+        public static void EnsureMissionFacilities(AstraMissionId mission)
+        {
+            switch (mission)
+            {
+                case AstraMissionId.FirstLight:
+                    EnsureVisibleFacility(FacilityType.Communications);
+                    EnsureVisibleFacility(FacilityType.SolarArray);
+                    EnsureVisibleFacility(FacilityType.LifeSupport);
+                    break;
+                case AstraMissionId.AirAndWater:
+                    EnsureVisibleFacility(FacilityType.WaterRecycler);
+                    EnsureVisibleFacility(FacilityType.OxygenProcessor);
+                    break;
+                case AstraMissionId.ShadowScout:
+                    EnsureVisibleFacility(FacilityType.Rover);
+                    break;
+                case AstraMissionId.StormWatch:
+                    EnsureSpaceWeatherStation();
+                    EnsureRadiationShelter();
+                    EnsureVisibleFacility(FacilityType.SpaceWeatherStation);
+                    EnsureVisibleFacility(FacilityType.RadiationShelter);
+                    EnsureVisibleFacility(FacilityType.Communications);
+                    EnsureVisibleFacility(FacilityType.SolarArray);
+                    EnsureVisibleFacility(FacilityType.LifeSupport);
+                    break;
+                case AstraMissionId.FoodForTheLongStay:
+                    EnsureVisibleFacility(FacilityType.Greenhouse);
+                    break;
+            }
+        }
+
+        private static AstraInteractable EnsureVisibleFacility(FacilityType type)
+        {
+            AstraInteractable facility = null;
+            foreach (AstraInteractable candidate in Object.FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
+            {
+                if (candidate.facilityType != type || candidate.facilityName.IndexOf("Practice", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                facility = candidate;
+                break;
+            }
+
+            if (facility == null)
+            {
+                GameObject outpost = GameObject.Find("SHACKLETON OUTPOST");
+                GameObject root = new GameObject(FacilityObjectName(type));
+                if (outpost != null) root.transform.SetParent(outpost.transform, false);
+                root.transform.localPosition = FacilityPosition(type);
+                facility = root.AddComponent<AstraInteractable>();
+                facility.facilityType = type;
+                facility.facilityName = FacilityDisplayName(type);
+                facility.description = FacilityDescription(type);
+                facility.interactionRange = type == FacilityType.Rover ? 5.5f : 4.5f;
+            }
+
+            bool hasVisibleModel = false;
+            foreach (Renderer renderer in facility.GetComponentsInChildren<Renderer>(true))
+                if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                {
+                    hasVisibleModel = true;
+                    break;
+                }
+
+            if (!hasVisibleModel && facility.transform.Find("ASTRA visible equipment fallback") == null)
+                BuildVisibleFacilityFallback(facility);
+
+            Collider rootCollider = facility.GetComponent<Collider>();
+            if (rootCollider == null)
+            {
+                BoxCollider bounds = facility.gameObject.AddComponent<BoxCollider>();
+                bounds.center = new Vector3(0f, 1.1f, 0f);
+                bounds.size = type == FacilityType.Rover ? new Vector3(3.8f, 2.2f, 3.2f) : new Vector3(3.2f, 2.7f, 3.0f);
+            }
+            return facility;
+        }
+
+        private static void BuildVisibleFacilityFallback(AstraInteractable facility)
+        {
+            GameObject model = new GameObject("ASTRA visible equipment fallback");
+            model.transform.SetParent(facility.transform, false);
+            Color steel = new Color(0.66f, 0.73f, 0.77f);
+            Color dark = new Color(0.055f, 0.12f, 0.19f);
+            Color cyan = new Color(0.08f, 0.78f, 0.91f);
+            switch (facility.facilityType)
+            {
+                case FacilityType.Communications:
+                    AddPart(PrimitiveType.Cube, "Relay electronics cabinet", model.transform, new Vector3(0f, 0.82f, 0f), new Vector3(1.35f, 1.55f, 0.85f), steel, Color.black);
+                    AddPart(PrimitiveType.Cylinder, "Relay mast", model.transform, new Vector3(0f, 2.05f, 0f), new Vector3(0.11f, 1.05f, 0.11f), steel, Color.black);
+                    AddPart(PrimitiveType.Cylinder, "Communications dish", model.transform, new Vector3(0f, 2.95f, 0.15f), new Vector3(1.12f, 0.13f, 1.12f), new Color(0.78f, 0.83f, 0.86f), Color.black).transform.localRotation = Quaternion.Euler(27f, 0f, 0f);
+                    AddPart(PrimitiveType.Cube, "Relay status display", model.transform, new Vector3(0f, 1.25f, 0.48f), new Vector3(0.62f, 0.34f, 0.035f), cyan, cyan * 0.35f);
+                    break;
+                case FacilityType.SolarArray:
+                    AddPart(PrimitiveType.Cylinder, "Array pedestal", model.transform, new Vector3(0f, 0.55f, 0f), new Vector3(0.33f, 0.58f, 0.33f), steel, Color.black);
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        AddPart(PrimitiveType.Cube, "Photovoltaic wing", model.transform, new Vector3(side * 1.38f, 1.24f, 0f), new Vector3(2.55f, 0.11f, 1.75f), new Color(0.045f, 0.19f, 0.38f), new Color(0.015f, 0.06f, 0.15f));
+                        AddPart(PrimitiveType.Cube, "Solar cell busbar", model.transform, new Vector3(side * 1.38f, 1.31f, 0f), new Vector3(0.045f, 0.025f, 1.65f), cyan, cyan * 0.24f);
+                    }
+                    AddPart(PrimitiveType.Cylinder, "Array rotation joint", model.transform, new Vector3(0f, 1.13f, 0f), new Vector3(0.18f, 0.15f, 0.18f), new Color(0.92f, 0.62f, 0.18f), Color.black);
+                    break;
+                case FacilityType.LifeSupport:
+                    AddPart(PrimitiveType.Cylinder, "Oxygen loop vessel", model.transform, new Vector3(-0.82f, 1.12f, 0f), new Vector3(0.58f, 1.12f, 0.58f), steel, Color.black);
+                    AddPart(PrimitiveType.Cylinder, "Water loop vessel", model.transform, new Vector3(0.82f, 1.12f, 0f), new Vector3(0.58f, 1.12f, 0.58f), new Color(0.31f, 0.60f, 0.73f), Color.black);
+                    AddPart(PrimitiveType.Cube, "Life support control console", model.transform, new Vector3(0f, 1.16f, 0.65f), new Vector3(1.8f, 1.25f, 0.22f), dark, Color.black);
+                    AddPart(PrimitiveType.Cube, "Life support status screen", model.transform, new Vector3(0f, 1.55f, 0.78f), new Vector3(1.05f, 0.34f, 0.04f), cyan, cyan * 0.32f);
+                    AddPart(PrimitiveType.Cylinder, "Life support transfer manifold", model.transform, new Vector3(0f, 2.5f, 0f), new Vector3(1.15f, 0.10f, 0.10f), steel, Color.black).transform.rotation = Quaternion.Euler(0f, 0f, 90f);
+                    break;
+                case FacilityType.WaterRecycler:
+                case FacilityType.OxygenProcessor:
+                    bool recycler = facility.facilityType == FacilityType.WaterRecycler;
+                    AddPart(PrimitiveType.Cube, recycler ? "Recycler housing" : "Oxygen generator housing", model.transform, new Vector3(0f, 1.05f, 0f), new Vector3(1.8f, 1.95f, 1.55f), new Color(0.47f, 0.58f, 0.63f), Color.black);
+                    AddPart(PrimitiveType.Cylinder, recycler ? "Recovered water tank" : "Oxygen storage tank", model.transform, new Vector3(1.15f, 0.9f, 0f), new Vector3(0.42f, 0.8f, 0.42f), recycler ? new Color(0.31f, 0.65f, 0.78f) : steel, Color.black);
+                    AddPart(PrimitiveType.Cube, recycler ? "Recycler cycle display" : "Oxygen generator display", model.transform, new Vector3(0f, 1.4f, 0.8f), new Vector3(0.95f, 0.38f, 0.04f), cyan, cyan * 0.32f);
+                    AddPart(PrimitiveType.Cylinder, recycler ? "Recycler return pipe" : "Electrolysis transfer pipe", model.transform, new Vector3(-0.92f, 0.42f, 0f), new Vector3(0.13f, 0.12f, 1.2f), steel, Color.black);
+                    break;
+                case FacilityType.Greenhouse:
+                    AddPart(PrimitiveType.Cube, "Greenhouse grow module", model.transform, new Vector3(0f, 1.08f, 0f), new Vector3(3.5f, 2.05f, 2.7f), new Color(0.20f, 0.39f, 0.43f), Color.black);
+                    AddPart(PrimitiveType.Cube, "Greenhouse viewing window", model.transform, new Vector3(0f, 1.2f, 1.37f), new Vector3(2.65f, 1.35f, 0.06f), new Color(0.04f, 0.36f, 0.43f), cyan * 0.18f);
+                    for (int i = -1; i <= 1; i++)
+                    {
+                        AddPart(PrimitiveType.Cube, "Hydroponic grow tray", model.transform, new Vector3(i * 0.85f, 0.34f, -0.25f), new Vector3(0.66f, 0.22f, 0.8f), new Color(0.31f, 0.23f, 0.16f), Color.black);
+                        AddPart(PrimitiveType.Sphere, "Greenhouse seedling", model.transform, new Vector3(i * 0.85f, 0.82f, -0.1f), new Vector3(0.4f, 0.68f, 0.4f), new Color(0.22f, 0.65f, 0.34f), Color.black);
+                    }
+                    break;
+                case FacilityType.RadiationShelter:
+                    AddPart(PrimitiveType.Cube, "Storm protected-area habitat", model.transform, new Vector3(0f, 1.05f, 0f), new Vector3(3.8f, 2.1f, 3.6f), new Color(0.32f, 0.40f, 0.53f), Color.black);
+                    AddPart(PrimitiveType.Cube, "Protected-area pressure door", model.transform, new Vector3(0f, 0.82f, 1.84f), new Vector3(1.15f, 1.58f, 0.09f), cyan, cyan * 0.22f);
+                    AddPart(PrimitiveType.Cube, "Storm shelter status panel", model.transform, new Vector3(1.14f, 1.45f, 1.88f), new Vector3(0.34f, 0.52f, 0.09f), dark, Color.black);
+                    AddPart(PrimitiveType.Sphere, "Protected-area ready beacon", model.transform, new Vector3(0f, 2.48f, 0f), Vector3.one * 0.22f, new Color(0.75f, 0.55f, 1f), new Color(0.24f, 0.08f, 0.45f));
+                    break;
+                case FacilityType.SpaceWeatherStation:
+                    AddPart(PrimitiveType.Cube, "Mars weather console", model.transform, new Vector3(0f, 0.78f, 0f), new Vector3(1.65f, 1.35f, 0.96f), dark, Color.black);
+                    AddPart(PrimitiveType.Cube, "Space-weather event display", model.transform, new Vector3(0f, 1.64f, 0.35f), new Vector3(1.45f, 0.72f, 0.08f), new Color(0.04f, 0.30f, 0.40f), cyan * 0.20f);
+                    AddPart(PrimitiveType.Cube, "Event graph trace", model.transform, new Vector3(0f, 1.57f, 0.405f), new Vector3(0.90f, 0.055f, 0.025f), cyan, cyan * 0.32f);
+                    AddPart(PrimitiveType.Sphere, "Weather console status lamp", model.transform, new Vector3(0.58f, 0.99f, 0.52f), Vector3.one * 0.12f, new Color(0.18f, 0.92f, 0.61f), new Color(0.06f, 0.48f, 0.26f));
+                    break;
+                case FacilityType.Rover:
+                    AddPart(PrimitiveType.Cube, "Surface rover chassis", model.transform, new Vector3(0f, 0.95f, 0f), new Vector3(2.65f, 0.65f, 1.85f), new Color(0.75f, 0.70f, 0.54f), Color.black);
+                    AddPart(PrimitiveType.Cube, "Rover instrument deck", model.transform, new Vector3(0f, 1.44f, 0f), new Vector3(1.45f, 0.34f, 1.18f), steel, Color.black);
+                    for (int side = -1; side <= 1; side += 2)
+                    for (int axle = -1; axle <= 1; axle++)
+                        AddPart(PrimitiveType.Cylinder, "Rover wheel", model.transform, new Vector3(side * 1.1f, 0.47f, axle * 0.58f), new Vector3(0.42f, 0.17f, 0.42f), dark, Color.black).transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                    AddPart(PrimitiveType.Cylinder, "Rover sample arm", model.transform, new Vector3(0.65f, 1.92f, 0.1f), new Vector3(0.09f, 0.46f, 0.09f), steel, Color.black);
+                    break;
+            }
+        }
+
+        private static string FacilityObjectName(FacilityType type)
+        {
+            switch (type)
+            {
+                case FacilityType.Communications: return "Communications";
+                case FacilityType.SolarArray: return "Solar Array";
+                case FacilityType.LifeSupport: return "Life Support";
+                case FacilityType.WaterRecycler: return "Water Recycler";
+                case FacilityType.OxygenProcessor: return "Oxygen Processor";
+                case FacilityType.Greenhouse: return "Greenhouse";
+                case FacilityType.Rover: return "Lunar Rover";
+                case FacilityType.RadiationShelter: return "Radiation Shelter";
+                case FacilityType.SpaceWeatherStation: return "Mars Dust-Storm Weather Console";
+                default: return type.ToString();
+            }
+        }
+
+        private static string FacilityDisplayName(FacilityType type)
+        {
+            switch (type)
+            {
+                case FacilityType.Communications: return "Communications station";
+                case FacilityType.SolarArray: return "Solar power station";
+                case FacilityType.LifeSupport: return "Life-support systems";
+                case FacilityType.WaterRecycler: return "Water recycler";
+                case FacilityType.OxygenProcessor: return "Oxygen generator";
+                case FacilityType.Greenhouse: return "Food production greenhouse";
+                case FacilityType.Rover: return "Surface exploration rover";
+                case FacilityType.RadiationShelter: return "Protected-area shelter";
+                case FacilityType.SpaceWeatherStation: return "Mars weather console";
+                default: return FacilityObjectName(type);
+            }
+        }
+
+        private static string FacilityDescription(FacilityType type)
+        {
+            switch (type)
+            {
+                case FacilityType.Communications: return "Align and commission the mission communications link.";
+                case FacilityType.SolarArray: return "Reposition the photovoltaic array and observe the simulated power output.";
+                case FacilityType.LifeSupport: return "Inspect the habitat air and water life-support readings.";
+                case FacilityType.WaterRecycler: return "Run a water recovery cycle and compare the simulated reserve readings.";
+                case FacilityType.OxygenProcessor: return "Use recovered water in a simplified oxygen-generation activity.";
+                case FacilityType.Greenhouse: return "Choose crop and growing conditions, then compare the harvests.";
+                case FacilityType.Rover: return "Drive to the marked virtual sample site and record the surface evidence.";
+                case FacilityType.RadiationShelter: return "Prepare the protected area for the simulated Mars dust-storm drill.";
+                case FacilityType.SpaceWeatherStation: return "Review the space-weather context and Mars drill briefing.";
+                default: return "Mission equipment and interaction point.";
+            }
+        }
+
+        private static Vector3 FacilityPosition(FacilityType type)
+        {
+            switch (type)
+            {
+                case FacilityType.Communications: return new Vector3(-10f, 0f, 5f);
+                case FacilityType.SolarArray: return new Vector3(10f, 0f, 5f);
+                case FacilityType.LifeSupport: return new Vector3(-10f, 0f, -8f);
+                case FacilityType.WaterRecycler: return new Vector3(16f, 0f, -12f);
+                case FacilityType.OxygenProcessor: return new Vector3(-16f, 0f, -12f);
+                case FacilityType.Greenhouse: return new Vector3(0f, 0f, -12f);
+                case FacilityType.Rover: return new Vector3(10f, 0f, -9f);
+                case FacilityType.RadiationShelter: return new Vector3(-8f, 0f, 19f);
+                case FacilityType.SpaceWeatherStation: return new Vector3(8f, 0f, 22f);
+                default: return Vector3.zero;
+            }
         }
 
         public static AstraInteractable EnsureSpacecraft()

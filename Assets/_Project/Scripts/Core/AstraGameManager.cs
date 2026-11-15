@@ -98,6 +98,7 @@ namespace Astra
         {
             hud = FindFirstObjectByType<AstraHUD>();
             AstraMissionWorldSetup.RepairInvalidRenderMaterials();
+            AstraMissionWorldSetup.EnsureMissionFacilities(AstraMissionId.FirstLight);
             AstraMissionWorldSetup.EnsureRadiationShelter();
             greenhouseDisplay = AstraMissionWorldSetup.EnsureGreenhouseDisplay();
             roverDrive = AstraMissionWorldSetup.EnsureRoverDrive();
@@ -182,6 +183,7 @@ namespace Astra
         public void BeginMission(AstraMissionId missionId)
         {
             StopCoroutine(nameof(LoadDonkiContext));
+            AstraMissionWorldSetup.EnsureMissionFacilities(missionId);
             AstraMissionWorldSetup.EnsureRadiationShelter();
             AstraMissionWorldSetup.ApplyDestination(AstraMissionCatalog.Get(missionId).Destination);
             AstraMissionWorldSetup.EnsureSpacecraft();
@@ -523,12 +525,8 @@ namespace Astra
                     {
                         if (IsStormReadinessPhase)
                         {
-                            communicationsOnline = true;
-                            facility.isOnline = true;
-                            facility.PlayCompletionFeedback();
-                            stormCommsChecked = true;
-                            LatestMessage = "Communications check passed. Mission Control link quality is 98% (fictional exercise reading).";
-                            CheckStormReadinessComplete();
+                            hud?.ShowActivityChoice("TEST THE MARS RELAY LINK", "Inspect the communication status, then select the link test. Signal quality is a fictional training value.", "PRIMARY RELAY\n98% signal · uses 2 power", "BACKUP BEACON\n86% signal · saves power", choice => CompleteCommunicationsInteraction(facility, choice, true));
+                            LatestMessage = "Choose a relay test to verify the outpost link.";
                         }
                         else if (IsStormInspectionPhase)
                         {
@@ -546,12 +544,14 @@ namespace Astra
                     }
                     if (!communicationsOnline)
                     {
-                        communicationsOnline = true;
-                        facility.isOnline = true;
-                        LatestMessage = "Comms link established. Mission Control is receiving your telemetry.";
+                        hud?.ShowActivityChoice("CALIBRATE THE COMMUNICATIONS DISH", "The dish is not aligned. Compare the stronger relay signal with the lower-power backup, then choose how to bring Mission Control online.", "TRACK LUNAR RELAY\n98% signal · uses 2 power", "LOW-POWER BEACON\n86% signal · saves power", choice => CompleteCommunicationsInteraction(facility, choice, false));
+                        LatestMessage = "Select a communication strategy to commission the station.";
                     }
-                    else LatestMessage = "Communications are online. Mission Control confirms signal quality is nominal.";
-                    CompleteObjective(AstraObjectiveId.Communications);
+                    else
+                    {
+                        LatestMessage = "Communications are online. Mission Control confirms signal quality is nominal.";
+                        CompleteObjective(AstraObjectiveId.Communications);
+                    }
                     break;
                 case FacilityType.SolarArray:
                     if (CurrentMission == AstraMissionId.StormWatch)
@@ -601,12 +601,8 @@ namespace Astra
                     {
                         if (IsStormReadinessPhase)
                         {
-                            lifeSupportChecked = true;
-                            facility.isOnline = true;
-                            stormLifeSupportChecked = true;
-                            facility.PlayCompletionFeedback();
-                            LatestMessage = "Life-support check passed. O₂ " + Mathf.RoundToInt(oxygen) + ", H₂O " + Mathf.RoundToInt(water) + ", habitat " + Mathf.RoundToInt(habitatCondition) + "% (game values).";
-                            CheckStormReadinessComplete();
+                            hud?.ShowActivityChoice("INSPECT LIFE-SUPPORT READINGS", "Review the habitat meters, then choose which loop to test before the Mars drill. Values are fictional game readings.", "CHECK WATER LOOP\nverify recycler reserve", "CHECK AIR LOOP\nverify oxygen reserve", choice => CompleteLifeSupportInteraction(facility, choice, true));
+                            LatestMessage = "Choose a life-support loop to test.";
                         }
                         else if (IsStormInspectionPhase)
                         {
@@ -624,15 +620,14 @@ namespace Astra
                     }
                     if (!lifeSupportChecked)
                     {
-                        lifeSupportChecked = true;
-                        resources.AddOxygen(4f);
-                        resources.AddWater(4f);
-                        LatestMessage = CurrentMission == AstraMissionId.FirstLight
-                            ? "Life-support check complete. NASA ECLSS connects water recovery, air cleaning, and oxygen generation. ASTRA uses simplified game meters."
-                            : "Life-support loop checked. Oxygen and water reserves are within safe game limits.";
+                        hud?.ShowActivityChoice("RUN A LIFE-SUPPORT DIAGNOSTIC", "Current readings: O₂ " + Mathf.RoundToInt(oxygen) + " · H₂O " + Mathf.RoundToInt(water) + " · habitat " + Mathf.RoundToInt(habitatCondition) + "%. Choose which subsystem to inspect first.", "WATER LOOP\ncheck recovery and storage", "AIR LOOP\ncheck filters and oxygen", choice => CompleteLifeSupportInteraction(facility, choice, false));
+                        LatestMessage = "Choose a subsystem and inspect its response.";
                     }
-                    else LatestMessage = "Life-support loop is stable. Keep an eye on the resource dashboard.";
-                    CompleteObjective(AstraObjectiveId.LifeSupport);
+                    else
+                    {
+                        LatestMessage = "Life-support loop is stable. Keep an eye on the resource dashboard.";
+                        CompleteObjective(AstraObjectiveId.LifeSupport);
+                    }
                     break;
                 case FacilityType.Habitat:
                     resources.RepairHabitat(3f);
@@ -689,10 +684,8 @@ namespace Astra
                         }
                         else if (IsStormReadinessPhase)
                         {
-                            stormShelterChecked = true;
-                            facility.PlayCompletionFeedback();
-                            LatestMessage = "Protected-area check passed. Access, environment support, and communications are ready.";
-                            CheckStormReadinessComplete();
+                            hud?.ShowActivityChoice("PREPARE THE PROTECTED AREA", "Choose how to prepare. Testing the pressure door gives stronger confidence but spends a little simulated power.", "TEST PRESSURE DOOR\nspend 2 power", "CLEAR SHELTER ACCESS\nsave power", choice => CompleteShelterPreparation(facility, choice, true));
+                            LatestMessage = "Choose a shelter preparation check.";
                         }
                         else if (IsStormInspectionPhase)
                         {
@@ -709,9 +702,7 @@ namespace Astra
                         LatestMessage = "Shelter preparation needs 8 game power. Bring the solar array online first.";
                     else
                     {
-                        shelterPrepared = true;
-                        CompleteObjective(AstraObjectiveId.Shelter);
-                        LatestMessage = "Radiation shelter prepared. Regolith can help shield a shelter, but this game does not calculate real dose or shielding performance.";
+                        CompleteShelterPreparation(facility, 1, false);
                     }
                     break;
                 case FacilityType.OxygenProcessor:
@@ -719,34 +710,27 @@ namespace Astra
                         LatestMessage = "Oxygen generation is an activity in the Air & Water mission.";
                     else if (waterRepairCount == 0)
                         LatestMessage = "Recover clean water first. NASA's oxygen-generation process uses water as an input.";
-                    else if (resources.Water < 4f)
-                        LatestMessage = "The oxygen generator needs 4 game water and 4 game power. Restore reserves first.";
-                    else if (!TrySpendPower(4f)) LatestMessage = "The oxygen processor needs 4 power units. Bring the solar array online.";
+                    else if (resources.Water < 2f)
+                        LatestMessage = "The oxygen generator needs at least 2 game water. Recover water first.";
+                    else if (oxygenRepairCount > 0)
+                        LatestMessage = "The oxygen-generation activity is complete. Current reserve: " + Mathf.RoundToInt(oxygen) + "% (fictional game value).";
                     else
                     {
-                        resources.TrySpendWater(4f);
-                        resources.AddOxygen(10f);
-                        if (oxygenRepairCount == 0)
-                        {
-                            oxygenRepairCount++;
-                            CompleteObjective(AstraObjectiveId.OxygenRestored);
-                        }
-                        LatestMessage = "Oxygen generation complete: recovered water −4, power −4, oxygen +10. NASA uses electrolysis; ASTRA values are fictional.";
+                        hud?.ShowActivityChoice("SET THE OXYGEN GENERATOR", "Current O₂: " + Mathf.RoundToInt(oxygen) + " · water: " + Mathf.RoundToInt(water) + " · power: " + Mathf.RoundToInt(power) + ". Choose an output plan; both use water and electricity.", "BOOST OUTPUT\n+10 O₂ · −4 water · −4 power", "ECONOMY MODE\n+6 O₂ · −2 water · −2 power", ChooseOxygenPlan);
+                        LatestMessage = "Choose an oxygen-generation plan and compare its resource cost.";
                     }
                     break;
                 case FacilityType.WaterRecycler:
                     if (CurrentMission != AstraMissionId.AirAndWater)
                         LatestMessage = "Water recovery is an activity in the Air & Water mission.";
-                    else if (!TrySpendPower(4f)) LatestMessage = "The water recycler needs 4 power units. Bring the solar array online.";
+                    else if (waterRepairCount > 0)
+                        LatestMessage = "The recycler cycle is complete. Current water reserve: " + Mathf.RoundToInt(water) + "% (fictional game value).";
+                    else if (resources.Power < 2f)
+                        LatestMessage = "The recycler needs at least 2 game power. Restore power before running a cycle.";
                     else
                     {
-                        resources.AddWater(10f);
-                        if (waterRepairCount == 0)
-                        {
-                            waterRepairCount++;
-                            CompleteObjective(AstraObjectiveId.WaterRestored);
-                        }
-                        LatestMessage = "Water recovery complete: clean water +10, power −4. NASA's system treats and checks recovered water; ASTRA values are fictional.";
+                        hud?.ShowActivityChoice("RUN THE WATER RECYCLER", "Inspect the available reserves, then choose a cycle. Output and costs are simplified game units.", "FULL RECLAMATION\n+10 water · −4 power", "ECO CYCLE\n+6 water · −2 power", ChooseWaterCycle);
+                        LatestMessage = "Choose a recycler cycle; its water and power meters will update.";
                     }
                     break;
                 case FacilityType.ResearchLab:
@@ -953,6 +937,142 @@ namespace Astra
             hud?.ShowMessage(LatestMessage);
             hud?.Refresh(this);
             VisualHintManager.Instance?.RefreshMissionTarget(this);
+            TryFinishMissionIfReady();
+        }
+
+        private void CompleteCommunicationsInteraction(AstraInteractable facility, int choice, bool stormReadiness)
+        {
+            if (facility == null) return;
+            if (choice == 0 && !resources.TrySpendPower(2f))
+            {
+                hud?.ShowActivityChoice("RELAY POWER IS TOO LOW", "The primary relay needs 2 game power. Choose the backup beacon to preserve the remaining reserve.", "PRIMARY RELAY\n98% signal · uses 2 power", "BACKUP BEACON\n86% signal · saves power", next => CompleteCommunicationsInteraction(facility, next, stormReadiness));
+                return;
+            }
+
+            communicationsOnline = true;
+            facility.isOnline = true;
+            facility.PlayCompletionFeedback();
+            hud?.HideStormPanel();
+            if (stormReadiness)
+            {
+                stormCommsChecked = true;
+                LatestMessage = choice == 0
+                    ? "Primary relay calibrated: 98% fictional signal quality; power −2. Mission Control confirms the link."
+                    : "Backup beacon tested: 86% fictional signal quality; reserve power saved. Mission Control confirms the link.";
+                CheckStormReadinessComplete();
+            }
+            else
+            {
+                LatestMessage = choice == 0
+                    ? "Dish aligned to the lunar relay: 98% fictional signal quality; power −2. Mission Control is receiving telemetry."
+                    : "Low-power beacon selected: 86% fictional signal quality and no power cost. Mission Control is receiving telemetry.";
+                CompleteObjective(AstraObjectiveId.Communications);
+            }
+            hud?.ShowMessage(LatestMessage);
+            hud?.Refresh(this);
+            TryFinishMissionIfReady();
+        }
+
+        private void CompleteLifeSupportInteraction(AstraInteractable facility, int choice, bool stormReadiness)
+        {
+            if (facility == null) return;
+            lifeSupportChecked = true;
+            facility.isOnline = true;
+            facility.PlayCompletionFeedback();
+            hud?.HideStormPanel();
+            string inspection = choice == 0
+                ? "Water loop inspected: H₂O reserve " + Mathf.RoundToInt(water) + "% and recycler status recorded."
+                : "Air loop inspected: O₂ reserve " + Mathf.RoundToInt(oxygen) + "% and habitat condition " + Mathf.RoundToInt(habitatCondition) + "% recorded.";
+            if (stormReadiness)
+            {
+                stormLifeSupportChecked = true;
+                LatestMessage = inspection + " Values are fictional game readings.";
+                CheckStormReadinessComplete();
+            }
+            else
+            {
+                resources.AddOxygen(choice == 0 ? 2f : 5f);
+                resources.AddWater(choice == 0 ? 5f : 2f);
+                LatestMessage = inspection + " Diagnostic rebalanced a small amount of the selected reserve. NASA ECLSS is more complex; ASTRA meters are simplified game values.";
+                CompleteObjective(AstraObjectiveId.LifeSupport);
+            }
+            hud?.ShowMessage(LatestMessage);
+            hud?.Refresh(this);
+            TryFinishMissionIfReady();
+        }
+
+        private void ChooseWaterCycle(int choice)
+        {
+            float powerCost = choice == 0 ? 4f : 2f;
+            if (resources.Power < powerCost)
+            {
+                hud?.ShowActivityChoice("RECYCLER NEEDS MORE POWER", "Bring the solar array online or choose the lower-cost cycle.", "FULL RECLAMATION\n+10 water · −4 power", "ECO CYCLE\n+6 water · −2 power", ChooseWaterCycle);
+                return;
+            }
+            resources.TrySpendPower(powerCost);
+            float recovered = choice == 0 ? 10f : 6f;
+            resources.AddWater(recovered);
+            waterRepairCount++;
+            hud?.HideStormPanel();
+            LatestMessage = (choice == 0 ? "Full reclamation cycle" : "Eco cycle") + " finished: water +" + recovered + ", power −" + powerCost + ". Recovered water is checked before use; ASTRA values are fictional.";
+            CompleteObjective(AstraObjectiveId.WaterRestored);
+            FindFacility(FacilityType.WaterRecycler)?.GetComponent<AstraInteractable>()?.PlayCompletionFeedback();
+            hud?.ShowMessage(LatestMessage);
+            hud?.Refresh(this);
+            TryFinishMissionIfReady();
+        }
+
+        private void ChooseOxygenPlan(int choice)
+        {
+            float powerCost = choice == 0 ? 4f : 2f;
+            float waterCost = choice == 0 ? 4f : 2f;
+            if (resources.Power < powerCost || resources.Water < waterCost)
+            {
+                hud?.ShowActivityChoice("GENERATOR INPUT TOO LOW", "The selected plan needs " + powerCost + " power and " + waterCost + " water. Restore reserves or choose the lower-cost plan.", "BOOST OUTPUT\n+10 O₂ · −4 water · −4 power", "ECONOMY MODE\n+6 O₂ · −2 water · −2 power", ChooseOxygenPlan);
+                return;
+            }
+            resources.TrySpendPower(powerCost);
+            resources.TrySpendWater(waterCost);
+            float produced = choice == 0 ? 10f : 6f;
+            resources.AddOxygen(produced);
+            oxygenRepairCount++;
+            hud?.HideStormPanel();
+            LatestMessage = (choice == 0 ? "Boost output" : "Economy mode") + " complete: O₂ +" + produced + ", water −" + waterCost + ", power −" + powerCost + ". NASA uses electrolysis; ASTRA values are fictional.";
+            CompleteObjective(AstraObjectiveId.OxygenRestored);
+            FindFacility(FacilityType.OxygenProcessor)?.GetComponent<AstraInteractable>()?.PlayCompletionFeedback();
+            hud?.ShowMessage(LatestMessage);
+            hud?.Refresh(this);
+            TryFinishMissionIfReady();
+        }
+
+        private void CompleteShelterPreparation(AstraInteractable facility, int choice, bool stormReadiness)
+        {
+            if (facility == null) return;
+            if (stormReadiness && choice == 0 && !resources.TrySpendPower(2f))
+            {
+                hud?.ShowActivityChoice("POWER RESERVE IS LOW", "The pressure-door test needs 2 game power. Clear and mark the shelter access route instead.", "TEST PRESSURE DOOR\nspend 2 power", "CLEAR SHELTER ACCESS\nsave power", next => CompleteShelterPreparation(facility, next, true));
+                return;
+            }
+            shelterPrepared = true;
+            facility.isOnline = true;
+            facility.PlayCompletionFeedback();
+            hud?.HideStormPanel();
+            if (stormReadiness)
+            {
+                stormShelterChecked = true;
+                LatestMessage = choice == 0
+                    ? "Pressure door tested and protected area prepared; power −2. This is a simulated readiness check, not a real pressure test."
+                    : "Shelter access route cleared and protected area prepared without spending power."
+                ;
+                CheckStormReadinessComplete();
+            }
+            else
+            {
+                CompleteObjective(AstraObjectiveId.Shelter);
+                LatestMessage = "Protected area prepared. Regolith can help shield a shelter, but ASTRA does not calculate real dose or shielding performance.";
+            }
+            hud?.ShowMessage(LatestMessage);
+            hud?.Refresh(this);
             TryFinishMissionIfReady();
         }
 
