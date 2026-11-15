@@ -1,0 +1,19 @@
+{
+  "tool": "Blender 5.2.4 LTS (portable, official Blender Foundation release)",
+  "sourcePolicy": "NASA 3D Resources used for every included model; no Sketchfab or generated substitutes were needed.",
+  "sourcePreservation": "Original NASA downloads are preserved beside this folder or under StreamingAssets. Processed models are separate GLBs.",
+  "models": [
+    {"asset":"Z2Spacesuit.glb","source":"NASA Langley Research Center / Advanced Concepts Lab","cleanup":"mesh validation; outward normals recalculated; smooth shading; Catmull-Clark subdivision level 1 applied to both meshes","export":"GLB"},
+    {"asset":"PerseveranceRover.glb","source":"NASA/JPL-Caltech","cleanup":"mesh validation; smooth shading; subdivision modifier caused Blender to crash, so source topology was retained","export":"GLB with Draco compression"},
+    {"asset":"SpaceExplorationVehicle.glb","source":"NASA Langley Research Center / Advanced Concepts Lab","cleanup":"mesh validation; smooth shading; dense source topology retained","export":"GLB; Draco export failed, so compatible uncompressed GLB exported"},
+    {"asset":"ApolloLunarModule.glb","source":"NASA/Michael D. Carbajal","cleanup":"mesh validation; smooth shading; subdivision skipped after Blender modifier crash on high-detail import","export":"GLB with Draco compression"},
+    {"asset":"HabitatDemonstrationUnit-Part1.glb","source":"NASA Langley Research Center / Advanced Concepts Lab","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"HabitatDemonstrationUnit-Part2.glb","source":"NASA Langley Research Center / Advanced Concepts Lab","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"NASADSN70mDish.glb","source":"NASA Ames Research Center","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"NASAInternationalSpaceStation.glb","source":"NASA/Michael D. Carbajal","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"NASALunarReconnaissanceOrbiter.glb","source":"NASA/Christopher R. Meaney","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"NASATDRSRelaySatellite.glb","source":"NASA/Christopher R. Meaney","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"},
+    {"asset":"ExtravehicularMobilityUnit.glb","source":"NASA/Michael D. Carbajal","cleanup":"mesh validation; smooth shading; source topology retained","export":"GLB with Draco compression"}
+  ],
+  "unityImport": "Unity glTFast/Draco importer is installed. An Editor startup import pass is included; this session could not run Unity's AssetDatabase because its license-client connection was refused. Runtime loader retains the original StreamingAssets GLB fallback."
+}

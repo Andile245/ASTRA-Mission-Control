@@ -14,10 +14,32 @@ namespace Astra
         private readonly Dictionary<Material, Color> originalEmission = new Dictionary<Material, Color>();
         private readonly Dictionary<Material, bool> originalEmissionKeyword = new Dictionary<Material, bool>();
         private readonly Dictionary<Transform, Quaternion> originalRotations = new Dictionary<Transform, Quaternion>();
+        private FacilityType? activeMotion;
+        private Transform motionRoot;
+        private Transform dishElevation;
+        private Transform orbiterHinge;
+        private Quaternion motionRootRest;
+        private Quaternion dishRest;
+        private Quaternion hingeRest;
+        private float motionStartedAt;
+        private bool motionRootRestCaptured;
+        private bool dishRestCaptured;
+        private bool hingeRestCaptured;
 
         public void Play(AstraInteractable facility)
         {
             if (facility == null) return;
+            activeMotion = facility.facilityType;
+            motionStartedAt = Time.time;
+            motionRoot = FindNamedChild(transform, "ASTRA NASA hardware");
+            if (motionRoot != null) motionRootRest = motionRoot.localRotation;
+            dishElevation = FindNamedChild(transform, "f_70m_rev_");
+            if (dishElevation != null) dishRest = dishElevation.localRotation;
+            orbiterHinge = FindNamedChild(transform, "Pivot-Layer_1");
+            if (orbiterHinge != null) hingeRest = orbiterHinge.localRotation;
+            motionRootRestCaptured = motionRoot != null;
+            dishRestCaptured = dishElevation != null;
+            hingeRestCaptured = orbiterHinge != null;
             if (renderers == null) renderers = GetComponentsInChildren<Renderer>(true);
             Color accent = AccentFor(facility.facilityType);
             foreach (Renderer item in renderers)
@@ -55,6 +77,10 @@ namespace Astra
         public void ResetVisuals()
         {
             StopAllCoroutines();
+            activeMotion = null;
+            motionRoot = null;
+            dishElevation = null;
+            orbiterHinge = null;
             if (localLight != null) localLight.intensity = 0f;
             if (renderers != null)
                 foreach (Renderer item in renderers)
@@ -72,6 +98,37 @@ namespace Astra
             if (fan != null) fan.gameObject.SetActive(false);
             foreach (Light light in OutpostLights)
                 if (light != null) light.intensity = 0f;
+        }
+
+        private void Update()
+        {
+            if (!activeMotion.HasValue) return;
+            float time = Time.time - motionStartedAt;
+            // Track a slow radio target using the actual NASA DSN mount and dish mesh.
+            if (activeMotion.Value == FacilityType.Communications)
+            {
+                if (motionRoot == null) motionRoot = FindNamedChild(transform, "ASTRA NASA hardware");
+                if (dishElevation == null) dishElevation = FindNamedChild(transform, "f_70m_rev_");
+                if (motionRoot != null && !motionRootRestCaptured) { motionRootRest = motionRoot.localRotation; motionRootRestCaptured = true; }
+                if (dishElevation != null && !dishRestCaptured) { dishRest = dishElevation.localRotation; dishRestCaptured = true; }
+                if (motionRoot != null)
+                    motionRoot.localRotation = motionRootRest * Quaternion.Euler(0f, Mathf.Sin(time * 0.20f) * 24f, 0f);
+                if (dishElevation != null)
+                    dishElevation.localRotation = dishRest * Quaternion.Euler(-8f + Mathf.Sin(time * 0.13f) * 5f, 0f, 0f);
+            }
+            // The LRO model's own named panel pivots and main assembly articulate
+            // gently to simulate solar tracking above the outpost.
+            else if (activeMotion.Value == FacilityType.SolarArray)
+            {
+                if (motionRoot == null) motionRoot = FindNamedChild(transform, "ASTRA NASA hardware");
+                if (orbiterHinge == null) orbiterHinge = FindNamedChild(transform, "Pivot-Layer_1");
+                if (motionRoot != null && !motionRootRestCaptured) { motionRootRest = motionRoot.localRotation; motionRootRestCaptured = true; }
+                if (orbiterHinge != null && !hingeRestCaptured) { hingeRest = orbiterHinge.localRotation; hingeRestCaptured = true; }
+                if (motionRoot != null)
+                    motionRoot.localRotation = motionRootRest * Quaternion.Euler(0f, time * 2.5f, 0f);
+                if (orbiterHinge != null)
+                    orbiterHinge.localRotation = hingeRest * Quaternion.Euler(Mathf.Sin(time * 0.35f) * 6f, 0f, 0f);
+            }
         }
 
         private IEnumerator FadeOn(Light light)
@@ -118,21 +175,19 @@ namespace Astra
             switch (type)
             {
                 case FacilityType.Communications:
-                    Transform dish = FindNamedChild(transform, "Relay dish");
-                    if (dish != null) { RememberRotation(dish); StartCoroutine(RotateTo(dish, Quaternion.Euler(24f, -28f, 0f))); }
+                    // Persistent dish tracking runs in Update using NASA's actual
+                    // mount and elevation transform nodes.
                     break;
                 case FacilityType.SolarArray:
-                    Transform[] panels = FindNamedChildren(transform, "Photovoltaic panel");
-                    foreach (Transform panel in panels) { RememberRotation(panel); StartCoroutine(RotateTo(panel, Quaternion.Euler(28f, 0f, 0f))); }
+                    // LRO solar-panel pivots slowly track sunlight in Update.
                     break;
                 case FacilityType.Rover:
-                    foreach (Transform wheel in FindNamedChildren(transform, "Rover wheel"))
-                    { RememberRotation(wheel); StartCoroutine(Spin(wheel, 1.15f, Vector3.up)); }
+                    Transform rover = FindNamedChild(transform, "ASTRA NASA hardware");
+                    if (rover != null) StartCoroutine(DriveInPlace(rover));
                     break;
                 case FacilityType.LifeSupport:
-                    Transform fan = CreateFan();
-                    fan.gameObject.SetActive(true);
-                    StartCoroutine(Spin(fan, 2.2f, Vector3.up));
+                    // Real ISS hardware remains still; the material pulse above marks
+                    // the system check without spawning another primitive prop.
                     break;
                 case FacilityType.Greenhouse:
                     foreach (Renderer item in renderers)
@@ -145,6 +200,28 @@ namespace Astra
             }
         }
 
+        private IEnumerator DriveInPlace(Transform rover)
+        {
+            if (rover == null) yield break;
+            Vector3 start = rover.localPosition;
+            Vector3 end = start + new Vector3(0f, 0f, 0.28f);
+            float elapsed = 0f;
+            while (elapsed < 0.65f && rover != null)
+            {
+                elapsed += Time.deltaTime;
+                rover.localPosition = Vector3.Lerp(start, end, Mathf.SmoothStep(0f, 1f, elapsed / 0.65f));
+                yield return null;
+            }
+            elapsed = 0f;
+            while (elapsed < 0.65f && rover != null)
+            {
+                elapsed += Time.deltaTime;
+                rover.localPosition = Vector3.Lerp(end, start, Mathf.SmoothStep(0f, 1f, elapsed / 0.65f));
+                yield return null;
+            }
+            if (rover != null) rover.localPosition = start;
+        }
+
         private IEnumerator RotateTo(Transform target, Quaternion localTarget)
         {
             if (target == null) yield break;
@@ -155,46 +232,6 @@ namespace Astra
                 yield return null;
             }
             target.localRotation = localTarget;
-        }
-
-        private IEnumerator Spin(Transform target, float seconds, Vector3 axis)
-        {
-            float elapsed = 0f;
-            while (target != null && elapsed < seconds)
-            {
-                target.Rotate(axis, 420f * Time.deltaTime, Space.Self);
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-        }
-
-        private Transform CreateFan()
-        {
-            Transform existing = FindNamedChild(transform, "Activated circulation fan");
-            if (existing != null) return existing;
-            GameObject hub = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            hub.name = "Activated circulation fan";
-            hub.transform.SetParent(transform, false);
-            hub.transform.localPosition = new Vector3(0f, 2.35f, 0.96f);
-            hub.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            hub.transform.localScale = new Vector3(0.16f, 0.06f, 0.16f);
-            Collider collider = hub.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-            hub.SetActive(false);
-            for (int i = 0; i < 3; i++)
-            {
-                GameObject blade = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                blade.name = "Fan blade";
-                blade.transform.SetParent(hub.transform, false);
-                blade.transform.localPosition = new Vector3(0f, 0.34f, 0f);
-                blade.transform.localRotation = Quaternion.Euler(0f, 0f, i * 120f);
-                blade.transform.localScale = new Vector3(0.12f, 0.46f, 0.035f);
-                Renderer bladeRenderer = blade.GetComponent<Renderer>();
-                bladeRenderer.material.color = new Color(0.62f, 0.77f, 0.81f);
-                Collider bladeCollider = blade.GetComponent<Collider>();
-                if (bladeCollider != null) Destroy(bladeCollider);
-            }
-            return hub.transform;
         }
 
         private static Transform FindNamedChild(Transform parent, string childName)

@@ -15,9 +15,11 @@ namespace Astra
         private Vector3 homePosition;
         private Vector3 defaultSamplePosition;
         private Transform sampleSite;
-        private GameObject sampleBeacon;
-        private GameObject sampleObject;
-        private Transform[] wheels;
+        private Transform nasaVehicleModel;
+        private Vector3 nasaVehicleRestPosition;
+        private Quaternion nasaVehicleRestRotation;
+        private Vector3 lastVehiclePosition;
+        private bool nasaVehicleRestCaptured;
         private bool sampleTaken;
         private float scheduledProgress;
         private float scheduledDirection = 1f;
@@ -34,12 +36,13 @@ namespace Astra
             game = FindAnyObjectByType<AstraGameManager>();
             player = FindAnyObjectByType<AstraPlayerController>();
             homePosition = transform.position;
-            wheels = FindWheels();
+            lastVehiclePosition = transform.position;
             CreateSampleSite();
         }
 
         private void Update()
         {
+            AnimateImportedVehicle();
             if (ScheduledTraverseActive && game != null && game.missionStarted && !game.missionFinished && !game.missionPaused && !game.EventOpen)
                 UpdateScheduledTraverse();
             if (!IsDriving || game == null || !game.CanControlPlayer) return;
@@ -69,7 +72,6 @@ namespace Astra
             {
                 transform.position = nextPosition;
                 SnapToTerrain();
-                SpinWheels(travel);
             }
 
             Key interactKey = settings != null ? settings.GetKey(AstraBinding.Interact) : Key.E;
@@ -84,9 +86,36 @@ namespace Astra
             if (collectPressed)
             {
                 if (IsAtSample) CollectSample();
-                else game.ShowMessage("Drive toward the orange sample beacon. " + Mathf.CeilToInt(DistanceToSample) + " m to go.");
+                else game.ShowMessage("Follow the surface-scan waypoint on your mission HUD. " + Mathf.CeilToInt(DistanceToSample) + " m to go.");
             }
             if (exitPressed) EndDrive();
+        }
+
+        private void AnimateImportedVehicle()
+        {
+            float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+            float speed = Vector3.Distance(transform.position, lastVehiclePosition) / dt;
+            lastVehiclePosition = transform.position;
+            if (nasaVehicleModel == null)
+                nasaVehicleModel = transform.Find("ASTRA NASA hardware/NASA SpaceExplorationVehicle");
+            if (nasaVehicleModel == null) return;
+            if (!nasaVehicleRestCaptured)
+            {
+                nasaVehicleRestPosition = nasaVehicleModel.localPosition;
+                nasaVehicleRestRotation = nasaVehicleModel.localRotation;
+                nasaVehicleRestCaptured = true;
+            }
+            // The NASA SEV file is a single complete vehicle mesh, without separate
+            // wheel joints. Give the actual imported vehicle a restrained suspension
+            // response while it traverses the terrain; do not spin hidden blockout wheels.
+            float moving = Mathf.Clamp01(speed / Mathf.Max(0.1f, driveSpeed));
+            float bounce = Mathf.Sin(Time.time * 8.5f) * 0.025f * moving;
+            float pitch = Mathf.Sin(Time.time * 8.5f) * 1.1f * moving;
+            nasaVehicleModel.localRotation = Quaternion.Slerp(nasaVehicleModel.localRotation,
+                nasaVehicleRestRotation * Quaternion.Euler(pitch, 0f, 0f), 1f - Mathf.Exp(-8f * dt));
+            Vector3 position = nasaVehicleModel.localPosition;
+            position.y = Mathf.Lerp(position.y, nasaVehicleRestPosition.y + bounce, 1f - Mathf.Exp(-8f * dt));
+            nasaVehicleModel.localPosition = position;
         }
 
         public void BeginDrive()
@@ -96,8 +125,7 @@ namespace Astra
             IsDriving = true;
             player = FindAnyObjectByType<AstraPlayerController>();
             player?.MountRover(this);
-            sampleBeacon?.SetActive(true);
-            VisualHintManager.Instance?.SetTarget(sampleBeacon != null ? sampleBeacon.transform : sampleSite);
+            VisualHintManager.Instance?.SetTarget(sampleSite);
         }
 
         public void EndDrive()
@@ -105,7 +133,6 @@ namespace Astra
             if (!IsDriving) return;
             IsDriving = false;
             player?.DismountRover(this);
-            if (sampleBeacon != null) sampleBeacon.SetActive(!sampleTaken);
             VisualHintManager.Instance?.RefreshMissionTarget(game);
         }
 
@@ -121,10 +148,9 @@ namespace Astra
 
         public void SetEuropaSurveyRoute(int route)
         {
-            if (sampleSite == null || sampleBeacon == null) return;
+            if (sampleSite == null) return;
             Vector3 offset = route == 0 ? new Vector3(14f, 0f, -11f) : new Vector3(8f, 0f, -15f);
             sampleSite.position = homePosition + offset;
-            sampleBeacon.transform.position = sampleSite.position;
         }
 
         public void SuspendScheduledTraverse()
@@ -141,18 +167,13 @@ namespace Astra
             transform.position = homePosition;
             transform.rotation = Quaternion.identity;
             if (sampleSite != null) sampleSite.position = defaultSamplePosition;
-            if (sampleBeacon != null) sampleBeacon.transform.position = defaultSamplePosition;
             sampleTaken = false;
-            if (sampleObject != null) sampleObject.SetActive(true);
-            if (sampleBeacon != null) sampleBeacon.SetActive(false);
         }
 
         private void CollectSample()
         {
             if (sampleTaken || !IsAtSample) return;
             sampleTaken = true;
-            if (sampleObject != null) sampleObject.SetActive(false);
-            if (sampleBeacon != null) sampleBeacon.SetActive(false);
             EndDrive();
             game.CollectRoverSample(this);
         }
@@ -165,32 +186,9 @@ namespace Astra
             GameObject site = new GameObject("Virtual surface sample site");
             sampleSite = site.transform;
             sampleSite.position = sitePosition;
-            sampleBeacon = new GameObject("Orange rover sample beacon");
-            sampleBeacon.transform.position = sitePosition;
-            GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            ring.name = "Sample landing target";
-            ring.transform.SetParent(sampleBeacon.transform, false);
-            ring.transform.localPosition = new Vector3(0f, 0.06f, 0f);
-            ring.transform.localScale = new Vector3(2.6f, 0.035f, 2.6f);
-            SetPrimitive(ring, new Color(0.98f, 0.47f, 0.12f), false);
-            GameObject beacon = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            beacon.name = "Sample beacon lamp";
-            beacon.transform.SetParent(sampleBeacon.transform, false);
-            beacon.transform.localPosition = new Vector3(0f, 1.65f, 0f);
-            beacon.transform.localScale = Vector3.one * 0.42f;
-            SetPrimitive(beacon, new Color(1f, 0.62f, 0.16f), false);
-            Light light = sampleBeacon.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.color = new Color(1f, 0.48f, 0.12f);
-            light.range = 8f;
-            light.intensity = 2f;
-            sampleObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sampleObject.name = "Virtual surface sample";
-            sampleObject.transform.SetParent(sampleBeacon.transform, false);
-            sampleObject.transform.localPosition = new Vector3(0f, 0.48f, 0f);
-            sampleObject.transform.localScale = new Vector3(0.65f, 0.42f, 0.58f);
-            SetPrimitive(sampleObject, new Color(0.78f, 0.68f, 0.51f), false);
-            sampleBeacon.SetActive(false);
+            // The sample task is a virtual regolith scan at this point in the
+            // imported Apollo landing-site terrain. The guidance target is kept
+            // invisible in-world; HUD navigation identifies the scan location.
         }
 
         private void SnapToTerrain()
@@ -203,22 +201,6 @@ namespace Astra
                 transform.position = new Vector3(transform.position.x, hit.point.y, transform.position.z);
         }
 
-        private Transform[] FindWheels()
-        {
-            System.Collections.Generic.List<Transform> result = new System.Collections.Generic.List<Transform>();
-            foreach (Transform child in GetComponentsInChildren<Transform>(true))
-                if (child.name == "Rover wheel") result.Add(child);
-            return result.ToArray();
-        }
-
-        private void SpinWheels(float travel)
-        {
-            if (Mathf.Abs(travel) < 0.001f) return;
-            float angle = travel / 0.39f * Mathf.Rad2Deg;
-            foreach (Transform wheel in wheels)
-                if (wheel != null) wheel.Rotate(Vector3.up, angle, Space.Self);
-        }
-
         private void UpdateScheduledTraverse()
         {
             const float routeLength = 8f;
@@ -227,17 +209,8 @@ namespace Astra
             if (scheduledProgress >= routeLength) { scheduledProgress = routeLength; scheduledDirection = -1f; }
             else if (scheduledProgress <= 0f) { scheduledProgress = 0f; scheduledDirection = 1f; }
             Vector3 next = homePosition + Vector3.right * scheduledProgress;
-            float travel = Vector3.Distance(transform.position, next);
             transform.position = next;
             SnapToTerrain();
-            SpinWheels(travel * scheduledDirection);
-        }
-
-        private static void SetPrimitive(GameObject item, Color color, bool keepCollider)
-        {
-            item.GetComponent<Renderer>().material.color = color;
-            Collider collider = item.GetComponent<Collider>();
-            if (!keepCollider && collider != null) Destroy(collider);
         }
     }
 }

@@ -44,7 +44,8 @@ namespace Astra
         public AstraResourceManager Resources => resources;
         public bool CanControlPlayer =>
             (missionStarted && !missionPaused && !missionFinished && !eventOpen && (maintenance == null || !maintenance.IsRunning)) ||
-            (OnboardingManager.Instance != null && OnboardingManager.Instance.AllowPlayerControl);
+            (OnboardingManager.Instance != null && OnboardingManager.Instance.AllowPlayerControl) ||
+            (AstraEarthLaunchSequence.Instance != null && AstraEarthLaunchSequence.Instance.AllowPlayerControl);
         public bool EventOpen => eventOpen;
         public string LatestMessage { get; private set; } = "Outpost systems awaiting crew inspection.";
         public string EventFeedback { get; private set; } = string.Empty;
@@ -75,7 +76,10 @@ namespace Astra
         private bool stormPowerChecked, stormLifeSupportChecked, stormCommsChecked, stormShelterChecked;
         private bool stormDrillActive, stormCrewSheltered;
         private float stormDrillElapsed;
+        private float stormOutdoorPauseElapsed;
+        private bool stormPauseWasDelayed, stormOutdoorWorkPaused;
         private int stormLastDisplayedSecond = -1;
+        private float firstGreenhouseYield;
         private readonly HashSet<FacilityType> stormInspectionChecked = new HashSet<FacilityType>();
         public bool CanLaunchNextDestination => missionFinished && !failure && GetNextMission(out AstraMissionId next) &&
             AstraMissionCatalog.Get(next).Destination != MissionDefinition.Destination;
@@ -93,11 +97,30 @@ namespace Astra
         private void Start()
         {
             hud = FindFirstObjectByType<AstraHUD>();
+            AstraMissionWorldSetup.RepairInvalidRenderMaterials();
             AstraMissionWorldSetup.EnsureRadiationShelter();
             greenhouseDisplay = AstraMissionWorldSetup.EnsureGreenhouseDisplay();
             roverDrive = AstraMissionWorldSetup.EnsureRoverDrive();
             AstraMissionWorldSetup.EnsureSpacecraft();
+            AstraRuntimeModelLoader nasaModelLoader = GetComponent<AstraRuntimeModelLoader>();
+            if (nasaModelLoader == null) nasaModelLoader = gameObject.AddComponent<AstraRuntimeModelLoader>();
+            int modeledFacilities = AstraMissionWorldSetup.ApplyNASAHardwareModels(nasaModelLoader);
+            if (modeledFacilities > 0) Debug.Log("ASTRA loaded NASA 3D hardware models for " + modeledFacilities + " interactive facilities.");
+            AstraMissionWorldSetup.ApplyNASALunarTerrain(nasaModelLoader);
+            AstraMissionWorldSetup.RepairInvalidRenderMaterials();
+            // Imported or generated renderers can appear later than the first startup scan.
+            // Re-run once the scene's startup components have completed their first frame.
+            StartCoroutine(RepairLateLoadedMaterials());
             hud?.Refresh(this);
+        }
+
+        private System.Collections.IEnumerator RepairLateLoadedMaterials()
+        {
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                yield return new WaitForSecondsRealtime(0.5f);
+                AstraMissionWorldSetup.RepairInvalidRenderMaterials();
+            }
         }
 
         private void Update()
@@ -112,7 +135,20 @@ namespace Astra
                 if (remaining != stormLastDisplayedSecond)
                 {
                     stormLastDisplayedSecond = remaining;
-                    hud?.ShowMessage("SIMULATED SPACE-WEATHER EVENT  ·  " + (stormCrewSheltered ? "CREW SHELTERED" : "MOVE TO THE PROTECTED AREA") + "  ·  " + remaining + "s");
+                    hud?.ShowMessage("SIMULATED MARS DUST STORM  ·  " + (stormCrewSheltered ? "CREW SHELTERED" : "MOVE TO THE PROTECTED AREA") + "  ·  " + remaining + "s");
+                }
+                if (stormPauseWasDelayed && !stormOutdoorWorkPaused)
+                {
+                    stormOutdoorPauseElapsed += Time.deltaTime;
+                    if (stormOutdoorPauseElapsed >= 10f)
+                    {
+                        roverDrive?.SuspendScheduledTraverse();
+                        stormOutdoorWorkPaused = true;
+                        resources.AddPower(-4f);
+                        LatestMessage = "Outdoor work paused after a 10-second delay. Scenario result: mission time +10 sec, battery −4 game units.";
+                        hud?.ShowMessage(LatestMessage);
+                        hud?.Refresh(this);
+                    }
                 }
                 if (stormDrillElapsed >= 15f && stormCrewSheltered) CompleteStormResponse();
             }
@@ -134,12 +170,8 @@ namespace Astra
                     hud?.ShowMessage(LatestMessage);
                 }
             }
-            float drillStart = 55f;
-            bool usesDrill = CurrentMission == AstraMissionId.FirstLight;
-            bool firstLightReadyForDrill = CurrentMission != AstraMissionId.FirstLight ||
-                (lifeSupportChecked && waterRepairCount > 0 && oxygenRepairCount > 0 && shelterPrepared);
-            if (usesDrill && !eventOpen && !eventResolved && communicationsOnline && solarOnline && firstLightReadyForDrill && missionSeconds >= drillStart)
-                OpenRadiationDrill();
+            // The storm drill is a Storm Watch activity only. First Light is limited
+            // to comms, solar positioning, and the initial life-support inspection.
             if (CurrentMission == AstraMissionId.StormWatch && HasObjective(AstraObjectiveId.ProtectedAreaReadiness) &&
                 !IsObjectiveComplete(AstraObjectiveId.ProtectedAreaReadiness) && !eventOpen && !eventResolved && !stormDrillActive)
                 OpenRadiationDrill();
@@ -154,6 +186,11 @@ namespace Astra
             AstraMissionWorldSetup.ApplyDestination(AstraMissionCatalog.Get(missionId).Destination);
             AstraMissionWorldSetup.EnsureSpacecraft();
             if (missionId == AstraMissionId.StormWatch) AstraMissionWorldSetup.EnsureSpaceWeatherStation();
+            AstraRuntimeModelLoader nasaModelLoader = GetComponent<AstraRuntimeModelLoader>();
+            if (nasaModelLoader == null) nasaModelLoader = gameObject.AddComponent<AstraRuntimeModelLoader>();
+            AstraMissionWorldSetup.ApplyNASAHardwareModels(nasaModelLoader);
+            AstraMissionWorldSetup.ApplyNASALunarTerrain(nasaModelLoader);
+            AstraMissionWorldSetup.RepairInvalidRenderMaterials();
             CurrentMission = missionId;
             missionStarted = true;
             missionFinished = false;
@@ -178,11 +215,14 @@ namespace Astra
             roverLaunchPaid = false;
             stormPowerChecked = stormLifeSupportChecked = stormCommsChecked = stormShelterChecked = false;
             stormDrillActive = stormCrewSheltered = false;
+            stormOutdoorPauseElapsed = 0f;
+            stormPauseWasDelayed = stormOutdoorWorkPaused = false;
             stormWeatherReportReviewed = false;
             stormDrillElapsed = 0f;
             stormLastDisplayedSecond = -1;
             stormInspectionChecked.Clear();
             foodCycleElapsed = 0f;
+            firstGreenhouseYield = 0f;
             foodCycleDuration = 20f;
             cropYield = 18f;
             selectedCrop = -1;
@@ -212,7 +252,7 @@ namespace Astra
             if (CurrentMission == AstraMissionId.StormWatch) roverDrive?.BeginScheduledTraverse();
             FindFirstObjectByType<AstraPlayerController>()?.ResetForMission();
             missionStarted = true;
-            if (CurrentMission == AstraMissionId.FirstLight || CurrentMission == AstraMissionId.StormWatch)
+            if (CurrentMission == AstraMissionId.StormWatch)
                 StartCoroutine(LoadDonkiContext());
             LatestMessage = "Mission clock started. " + MissionDefinition.Briefing;
             hud?.SetIntroVisible(false);
@@ -230,6 +270,7 @@ namespace Astra
             switch (CurrentMission)
             {
                 case AstraMissionId.FirstLight: resources.SetMissionResources(82f, 48f, 72f, 48f, 96f); break;
+                case AstraMissionId.AirAndWater: resources.SetMissionResources(62f, 36f, 78f, 72f, 100f); break;
                 case AstraMissionId.StormWatch: resources.SetMissionResources(82f, 78f, 72f, 48f, 96f); break;
                 case AstraMissionId.FoodForTheLongStay: resources.SetMissionResources(82f, 66f, 34f, 62f, 96f); break;
                 default: resources.SetMissionResources(100f, 100f, 100f, 82f, 100f); break;
@@ -246,6 +287,12 @@ namespace Astra
 
         public void TryInteract(Vector3 playerPosition)
         {
+            if (AstraEarthLaunchSequence.Instance != null && AstraEarthLaunchSequence.Instance.IsRunning)
+            {
+                AstraEarthLaunchSequence.Instance.TryInteract(playerPosition);
+                return;
+            }
+
             AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
             if (OnboardingManager.Instance != null && OnboardingManager.Instance.IsPracticeActive)
@@ -306,11 +353,10 @@ namespace Astra
                     return HasObjective(AstraObjectiveId.CropHarvest) && !foodCycleStarted && foodHarvestCount < MissionDefinition.CropHarvestsRequired && resources.Power >= 8f && resources.Water >= 8f;
                 case FacilityType.RadiationShelter: return !shelterPrepared && resources.Power >= 8f;
                 case FacilityType.OxygenProcessor:
-                    return resources.Power >= 4f && (CurrentMission != AstraMissionId.FirstLight ||
-                        (lifeSupportChecked && waterRepairCount > 0 && resources.Water >= 4f));
+                    return resources.Power >= 4f && (CurrentMission != AstraMissionId.AirAndWater ||
+                        (waterRepairCount > 0 && resources.Water >= 4f));
                 case FacilityType.WaterRecycler:
-                    return resources.Power >= 4f && (CurrentMission != AstraMissionId.FirstLight ||
-                        (solarOnline && lifeSupportChecked));
+                    return resources.Power >= 4f;
                 case FacilityType.Rover: return false;
                 default: return false;
             }
@@ -343,7 +389,7 @@ namespace Astra
             AstraInteractable shelter = FindFacility(FacilityType.RadiationShelter)?.GetComponent<AstraInteractable>();
             if (shelter != null) shelter.isOnline = true;
             CompleteObjective(AstraObjectiveId.ProtectedAreaReadiness);
-            LatestMessage = "Protected area readiness passed: power, life support, communications, and shelter checks are green. The rover traverse is active; the practice drill is beginning.";
+            LatestMessage = "Mars dust-storm equipment is ready. Choose when to pause the rover traverse; the delay changes mission time and the fictional battery level.";
             hud?.ShowMessage(LatestMessage);
             hud?.Refresh(this);
         }
@@ -411,7 +457,7 @@ namespace Astra
             stormWeatherReportReviewed = true;
             hud?.HideStormPanel();
             CompleteObjective(AstraObjectiveId.WeatherReportReviewed);
-            LatestMessage = "Space-weather report reviewed. DONKI event records provide context; they are not a Mars surface dose forecast.";
+            LatestMessage = "Mars dust-storm scenario report reviewed. This is a fictional local-weather exercise, not a live forecast.";
             hud?.ShowMessage(LatestMessage);
             CheckStormReadinessComplete();
         }
@@ -493,6 +539,11 @@ namespace Astra
                         else LatestMessage = "Communications status is available on the mission console.";
                         break;
                     }
+                    if (CurrentMission != AstraMissionId.FirstLight)
+                    {
+                        LatestMessage = "Communications commissioning is a First Light activity. Storm Watch uses its separate readiness check.";
+                        break;
+                    }
                     if (!communicationsOnline)
                     {
                         communicationsOnline = true;
@@ -524,9 +575,14 @@ namespace Astra
                         else LatestMessage = "Power system status is available on the mission console.";
                         break;
                     }
+                    if (CurrentMission != AstraMissionId.FirstLight)
+                    {
+                        LatestMessage = "Solar-array repositioning is a First Light activity. Storm Watch checks the array only during its drill preparation and debrief.";
+                        break;
+                    }
                     if (CurrentMission == AstraMissionId.FirstLight && !solarOnline)
                     {
-                        hud?.ShowActivityChoice("SOLAR ARRAY ALIGNMENT", "Choose how to orient the array for this simplified lunar daylight scenario. Compare the fictional power yield shown in the briefing; this is a game decision, not a real flight procedure.", "TRACK THE SUN\nSteady generation", "PROTECT THE ARRAY\nLower short-term output", ChooseSolarAlignment);
+                        hud?.ShowActivityChoice("REPOSITION THE SOLAR ARRAY", "BEFORE: " + Mathf.RoundToInt(power) + " battery units. Compare the projected readings, reposition the array, then inspect the new reading. These are fictional game units.", "TRACK THE SUN\nUp to +10 power", "PROTECT THE ARRAY\nUp to +5 power", ChooseSolarAlignment);
                         LatestMessage = "Review the two power strategies and select an array operating plan.";
                         break;
                     }
@@ -561,6 +617,11 @@ namespace Astra
                         else LatestMessage = "Life-support status is available on the mission console.";
                         break;
                     }
+                    if (CurrentMission != AstraMissionId.FirstLight)
+                    {
+                        LatestMessage = "The life-support reading is shown on the mission resource display. The inspection task belongs to First Light.";
+                        break;
+                    }
                     if (!lifeSupportChecked)
                     {
                         lifeSupportChecked = true;
@@ -579,7 +640,7 @@ namespace Astra
                     break;
                 case FacilityType.Greenhouse:
                     if (!HasObjective(AstraObjectiveId.CropHarvest))
-                        LatestMessage = "The greenhouse is reserved for the standalone Moon Greenhouse mission. Complete the current mission to unlock it.";
+                        LatestMessage = "Crop planning and harvests are part of the Food for the Long Stay mission.";
                     else if (foodHarvestCount >= MissionDefinition.CropHarvestsRequired)
                         LatestMessage = "The greenhouse batch has been harvested. The CSA learning link is in BRIEFING / SCIENCE.";
                     else if (foodBatchReady)
@@ -592,6 +653,11 @@ namespace Astra
                         greenhouseDisplay?.ShowHarvest(foodHarvestCount);
                         if (foodHarvestCount >= needed) CompleteObjective(AstraObjectiveId.CropHarvest);
                         LatestMessage = "Crop harvest " + foodHarvestCount + "/" + needed + ": food +" + Mathf.RoundToInt(cropYield) + " game units. Crop cycle costs and yields are fictional.";
+                        if (CurrentMission == AstraMissionId.FoodForTheLongStay)
+                        {
+                            if (foodHarvestCount == 1) firstGreenhouseYield = cropYield;
+                            else LatestMessage += " Compare recorded yields: cycle 1 " + Mathf.RoundToInt(firstGreenhouseYield) + " vs cycle 2 " + Mathf.RoundToInt(cropYield) + " food units.";
+                        }
                         foodCycleStarted = false;
                         selectedCrop = -1;
                         if (CurrentMission == AstraMissionId.FoodForTheLongStay && foodHarvestCount < needed)
@@ -603,11 +669,16 @@ namespace Astra
                     }
                     else
                     {
-                        hud?.ShowActivityChoice("GREENHOUSE CROP PLAN", "Select a crop strategy for this training habitat. Resource values and growth time are simplified game values. Both choices teach that crop yield, water demand, and time must be balanced.", "LEAFY GREENS\n8 water · 8 power · 20 sec · +18 food", "DWARF BEANS\n12 water · 8 power · 30 sec · +24 food", ChooseGreenhouseCrop);
-                        LatestMessage = "Choose a crop plan, then manage its water, power, and growth cycle.";
+                        hud?.ShowActivityChoice("CROP + GROWING CONDITIONS", "Choose a crop and light/water plan. After two harvests, compare recorded yields and resource costs. All values are fictional game settings.", "LEAFY GREENS\nBright light · 8 water · 8 power · 20 sec · +18 food", "DWARF BEANS\nModerate light · 12 water · 8 power · 30 sec · +24 food", ChooseGreenhouseCrop);
+                        LatestMessage = "Choose a crop and its light/water conditions, then watch the shortened growth cycle.";
                     }
                     break;
                 case FacilityType.RadiationShelter:
+                    if (CurrentMission != AstraMissionId.StormWatch)
+                    {
+                        LatestMessage = "The protected-area drill is part of the Storm Watch mission.";
+                        break;
+                    }
                     if (CurrentMission == AstraMissionId.StormWatch)
                     {
                         if (stormDrillActive)
@@ -644,65 +715,54 @@ namespace Astra
                     }
                     break;
                 case FacilityType.OxygenProcessor:
-                    if (CurrentMission == AstraMissionId.FirstLight && !lifeSupportChecked)
-                        LatestMessage = "Inspect the life-support panel before starting oxygen generation.";
-                    else if (CurrentMission == AstraMissionId.FirstLight && waterRepairCount == 0)
-                        LatestMessage = "Recover clean water first. NASA's oxygen generation process uses water as an input.";
-                    else if (CurrentMission == AstraMissionId.FirstLight && resources.Water < 4f)
-                        LatestMessage = "The oxygen generation practice cycle needs 4 game water and 4 game power. Restore reserves first.";
+                    if (CurrentMission != AstraMissionId.AirAndWater)
+                        LatestMessage = "Oxygen generation is an activity in the Air & Water mission.";
+                    else if (waterRepairCount == 0)
+                        LatestMessage = "Recover clean water first. NASA's oxygen-generation process uses water as an input.";
+                    else if (resources.Water < 4f)
+                        LatestMessage = "The oxygen generator needs 4 game water and 4 game power. Restore reserves first.";
                     else if (!TrySpendPower(4f)) LatestMessage = "The oxygen processor needs 4 power units. Bring the solar array online.";
                     else
                     {
-                        bool missionTwo = CurrentMission == AstraMissionId.FirstLight;
-                        if (missionTwo) resources.TrySpendWater(4f);
+                        resources.TrySpendWater(4f);
                         resources.AddOxygen(10f);
-                        if (missionTwo && oxygenRepairCount == 0)
+                        if (oxygenRepairCount == 0)
                         {
                             oxygenRepairCount++;
                             CompleteObjective(AstraObjectiveId.OxygenRestored);
                         }
-                        LatestMessage = missionTwo
-                            ? "Oxygen Generation practice cycle: water −4, power −4, oxygen +10. NASA's real assembly uses electrolysis; ASTRA values are fictional."
-                            : "Oxygen processor cycle complete: oxygen +10, power −4. These are game values.";
+                        LatestMessage = "Oxygen generation complete: recovered water −4, power −4, oxygen +10. NASA uses electrolysis; ASTRA values are fictional.";
                     }
                     break;
                 case FacilityType.WaterRecycler:
-                    if (CurrentMission == AstraMissionId.FirstLight && !solarOnline)
-                        LatestMessage = "Bring the solar array online before running the water recovery unit.";
-                    else if (CurrentMission == AstraMissionId.FirstLight && !lifeSupportChecked)
-                        LatestMessage = "Inspect the life-support panel before starting water recovery.";
+                    if (CurrentMission != AstraMissionId.AirAndWater)
+                        LatestMessage = "Water recovery is an activity in the Air & Water mission.";
                     else if (!TrySpendPower(4f)) LatestMessage = "The water recycler needs 4 power units. Bring the solar array online.";
                     else
                     {
                         resources.AddWater(10f);
-                        bool missionTwo = CurrentMission == AstraMissionId.FirstLight;
-                        if (missionTwo && waterRepairCount == 0)
+                        if (waterRepairCount == 0)
                         {
                             waterRepairCount++;
                             CompleteObjective(AstraObjectiveId.WaterRestored);
                         }
-                        LatestMessage = missionTwo
-                            ? "Water Recovery practice cycle: clean water +10, power −4. NASA's system treats and checks recovered water; ASTRA values are fictional."
-                            : "Water recycling cycle complete: water +10, power −4. These are game values.";
+                        LatestMessage = "Water recovery complete: clean water +10, power −4. NASA's system treats and checks recovered water; ASTRA values are fictional.";
                     }
                     break;
                 case FacilityType.ResearchLab:
                     LatestMessage = "Research note: lunar samples can reveal how the Moon formed and changed. This mission sample is virtual.";
                     break;
                 case FacilityType.Rover:
-                    if (CurrentMission == AstraMissionId.StormWatch && !eventResolved)
+                    if (CurrentMission == AstraMissionId.StormWatch)
                     {
-                        LatestMessage = "A scheduled rover traverse is in progress. Suspend it from the drill prompt before approaching the rover.";
+                        LatestMessage = !eventResolved
+                            ? "The scheduled rover traverse is in progress. Suspend outdoor work from the Storm Watch alert."
+                            : "The Storm Watch traverse is complete. Review the outpost checks at the weather console.";
                         break;
                     }
-                    if (CurrentMission == AstraMissionId.FirstLight && !eventResolved)
+                    if (CurrentMission != AstraMissionId.ShadowScout)
                     {
-                        LatestMessage = "Stabilize the outpost before starting the rover sample run.";
-                        break;
-                    }
-                    if (CurrentMission == AstraMissionId.FirstLight && !shelterPrepared)
-                    {
-                        LatestMessage = "Prepare the radiation shelter before the rover leaves. Visit the marked Radiation Shelter.";
+                        LatestMessage = "Rover sample survey is part of the Shadow Scout mission.";
                         break;
                     }
                     if (CurrentMission == AstraMissionId.ShadowScout && !roverRouteChosen)
@@ -785,64 +845,31 @@ namespace Astra
             eventOpen = true;
             missionPaused = true;
             EventFeedback = string.Empty;
-            LatestMessage = CurrentMission == AstraMissionId.StormWatch
-                ? "Drill alert: suspend the scheduled rover traverse before the simulated space-weather event."
-                : "Training alert: simulated solar-particle event. Review the NASA data context, then choose a response.";
+            LatestMessage = "Storm Watch alert: choose when to pause the Mars rover traverse, then guide the astronaut to the protected area.";
             hud?.SetEventVisible(true);
             hud?.SetCursorForMission(false);
         }
 
         public void ResolveRadiationDrill(bool shelterCrew)
         {
-            if (!eventOpen) return;
-            if (CurrentMission == AstraMissionId.StormWatch)
-            {
-                if (!shelterCrew) return;
-                roverDrive?.SuspendScheduledTraverse();
-                stormDrillActive = true;
-                stormCrewSheltered = false;
-                stormDrillElapsed = 0f;
-                stormLastDisplayedSecond = -1;
-                eventOpen = false;
-                missionPaused = false;
-                LatestMessage = "Rover traverse suspended. The simulated event is active: guide the astronaut to the protected area and confirm the crew is sheltered.";
-                hud?.SetEventVisible(false);
-                hud?.SetCursorForMission(true);
-                hud?.ShowMessage(LatestMessage);
-                VisualHintManager.Instance?.RefreshMissionTarget(this);
-                return;
-            }
-            if (shelterCrew)
-            {
-                float powerCost = shelterPrepared ? 6f : 18f;
-                if (!TrySpendPower(powerCost))
-                {
-                    LatestMessage = "Not enough game power to move the crew to shelter. Choose continue outside, or restart and prepare more power.";
-                    hud?.ShowMessage(LatestMessage);
-                    return;
-                }
-                radiationExposureIndex = Mathf.Min(100f, radiationExposureIndex + (shelterPrepared ? 5f : 15f));
-                resources.AddFood(-3f);
-                safeDecision = true;
-                EventFeedback = "Sheltering costs power and briefly interrupts greenhouse work. In this fictional drill, the prepared shelter adds less to the exposure index. The index is not a measured dose.";
-                LatestMessage = "Crew sheltered. Power was used and food work paused during the training scenario.";
-            }
-            else
-            {
-                radiationExposureIndex = Mathf.Min(100f, radiationExposureIndex + 30f);
-                resources.DamageHabitat(8f);
-                EventFeedback = "The crew remained outside to keep tasks running. The training scenario adds more to its fictional exposure index. DONKI events are not lunar radiation-dose readings.";
-                LatestMessage = "Outside operations continued during the simulated event. Check the exposure index in the science briefing.";
-            }
+            if (!eventOpen || CurrentMission != AstraMissionId.StormWatch) return;
+            stormPauseWasDelayed = !shelterCrew;
+            stormOutdoorWorkPaused = shelterCrew;
+            stormOutdoorPauseElapsed = 0f;
+            if (shelterCrew) roverDrive?.SuspendScheduledTraverse();
+            stormDrillActive = true;
+            stormCrewSheltered = false;
+            stormDrillElapsed = 0f;
+            stormLastDisplayedSecond = -1;
             eventOpen = false;
-            eventResolved = true;
             missionPaused = false;
-            CompleteObjective(AstraObjectiveId.StormResponse);
+            LatestMessage = shelterCrew
+                ? "Rover paused immediately. Guide the astronaut to the protected area; compare the mission clock and battery after the drill."
+                : "You chose to delay the pause. The rover will continue for 10 seconds; mission time advances and the scenario will deduct 4 fictional battery units before outdoor work stops.";
             hud?.SetEventVisible(false);
             hud?.SetCursorForMission(true);
-            hud?.ShowMessage(EventFeedback);
-            hud?.Refresh(this);
-            TryFinishMissionIfReady();
+            hud?.ShowMessage(LatestMessage);
+            VisualHintManager.Instance?.RefreshMissionTarget(this);
         }
 
         private void CompleteStormResponse()
@@ -886,12 +913,16 @@ namespace Astra
         public void CollectRoverSample(AstraRoverDrive drive)
         {
             if (drive == null || sampleCollected || !roverLaunchPaid) return;
+            if (CurrentMission != AstraMissionId.ShadowScout)
+            {
+                LatestMessage = "Virtual rover sample collection is only available during Shadow Scout.";
+                hud?.ShowMessage(LatestMessage);
+                return;
+            }
             sampleCollected = true;
             sampleAnalysisPending = true;
-            if (CurrentMission == AstraMissionId.ShadowScout)
-                hud?.ShowActivityChoice("EUROPA SAMPLE CLASSIFICATION", "The rover collected exposed surface material. What can this sample establish? A surface sample cannot directly prove the composition of Europa's subsurface ocean.", "SURFACE WATER ICE\nClassify the visible material", "SUBSURFACE OCEAN\nClaim it came from below", ChooseSampleAnalysis);
-            else
-                hud?.ShowActivityChoice("LUNAR SAMPLE CLASSIFICATION", "The rover collected a virtual lunar surface sample. Classify the material using the visible surface context.", "LOOSE REGOLITH\nWeathered surface grains", "LIQUID WATER\nA flowing surface sample", ChooseSampleAnalysis);
+            CompleteObjective(AstraObjectiveId.EuropaSiteInspected);
+            hud?.ShowActivityChoice("EUROPA SAMPLE CLASSIFICATION", "The rover collected exposed surface material. What can this sample establish? A surface sample cannot directly prove the composition of Europa's subsurface ocean.", "SURFACE WATER ICE\nClassify the visible material", "SUBSURFACE OCEAN\nClaim it came from below", ChooseSampleAnalysis);
             LatestMessage = "Virtual surface sample secured. Analyze and classify it at the mission console.";
             hud?.ShowMessage(LatestMessage);
             hud?.Refresh(this);
@@ -901,17 +932,20 @@ namespace Astra
         {
             AstraInteractable array = FindFacility(FacilityType.SolarArray)?.GetComponent<AstraInteractable>();
             if (array == null) return;
+            int powerBefore = Mathf.RoundToInt(power);
             solarOnline = true;
             array.isOnline = true;
             if (choice == 0)
             {
                 resources.AddPower(10f);
-                LatestMessage = "Sun-tracking plan selected. The array is online and added 10 fictional game power units.";
+                int powerAfter = Mathf.RoundToInt(power);
+                LatestMessage = "Array repositioned to track the Sun. Battery: " + powerBefore + " → " + powerAfter + " game units (+" + (powerAfter - powerBefore) + ").";
             }
             else
             {
                 resources.AddPower(5f);
-                LatestMessage = "Array-protection plan selected. The array is online and added 5 fictional game power units; the scenario trades output for a conservative setting.";
+                int powerAfter = Mathf.RoundToInt(power);
+                LatestMessage = "Array repositioned to protect it. Battery: " + powerBefore + " → " + powerAfter + " game units (+" + (powerAfter - powerBefore) + "); this setting trades output for protection.";
             }
             array.PlayCompletionFeedback();
             hud?.HideStormPanel();
@@ -964,6 +998,7 @@ namespace Astra
                 return;
             }
             roverLaunchPaid = true;
+            CompleteObjective(AstraObjectiveId.EuropaRoutePlanned);
             roverDrive?.BeginDrive();
             LatestMessage = "Route selected. Drive the rover to the beacon, inspect the exposed surface sample, then classify it.";
             hud?.ShowMessage(LatestMessage);
@@ -973,7 +1008,7 @@ namespace Astra
         private void ChooseSampleAnalysis(int choice)
         {
             if (!sampleAnalysisPending) return;
-            bool correct = CurrentMission == AstraMissionId.ShadowScout ? choice == 0 : choice == 0;
+            bool correct = choice == 0;
             if (!correct)
             {
                 LatestMessage = CurrentMission == AstraMissionId.ShadowScout
@@ -987,9 +1022,9 @@ namespace Astra
             sampleAnalysisPending = false;
             hud?.HideStormPanel();
             CompleteObjective(AstraObjectiveId.RoverSample);
-            LatestMessage = CurrentMission == AstraMissionId.ShadowScout
-                ? "Sample classified as exposed surface water ice. A surface sample cannot confirm the subsurface ocean's composition."
-                : "Sample classified as loose lunar regolith. The rover telemetry and virtual sample are logged for the mission.";
+            if (CurrentMission == AstraMissionId.ShadowScout)
+                LatestMessage = "Sample classified as exposed surface water ice. A surface sample cannot confirm the subsurface ocean's composition.";
+            else LatestMessage = "Sample classified as loose lunar regolith. The rover telemetry and virtual sample are logged for the mission.";
             hud?.ShowMessage(LatestMessage);
             hud?.Refresh(this);
             TryFinishMissionIfReady();
@@ -1040,7 +1075,7 @@ namespace Astra
         private string BuildLearningSummary()
         {
             string result = MissionDefinition.Lesson;
-            if (CurrentMission == AstraMissionId.FirstLight && eventResolved)
+            if (CurrentMission == AstraMissionId.StormWatch && eventResolved)
                 result += safeDecision
                     ? " You sheltered the crew and traded power and food for a lower fictional exposure index."
                     : " You kept outside work running but accepted a higher fictional exposure index.";

@@ -8,6 +8,163 @@ namespace Astra
     {
         private static readonly Dictionary<string, Material> RuntimeMaterials = new Dictionary<string, Material>();
         private static Texture2D sharedRegolithTexture;
+        private static AstraDestinationId activeDestination = AstraDestinationId.Moon;
+        /// <summary>Replaces missing/error shaders on scene renderers with URP Lit at runtime.</summary>
+        public static int RepairInvalidRenderMaterials()
+        {
+            Shader fallback = Shader.Find("Universal Render Pipeline/Lit");
+            if (fallback == null) fallback = Shader.Find("Standard");
+            if (fallback == null) return 0;
+
+            int repairedCount = 0;
+            foreach (Renderer renderer in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            {
+                Material[] materials = renderer.sharedMaterials;
+                bool changed = false;
+                for (int i = 0; i < materials.Length; i++)
+                {
+                    Material original = materials[i];
+                    bool invalidShader = original == null || original.shader == null || !original.shader.isSupported ||
+                                         original.shader.name.Contains("Error");
+                    Color originalColor = Color.white;
+                    bool hasOriginalColor = false;
+                    if (original != null)
+                    {
+                        if (original.HasProperty("_BaseColor")) { originalColor = original.GetColor("_BaseColor"); hasOriginalColor = true; }
+                        else if (original.HasProperty("_Color")) { originalColor = original.GetColor("_Color"); hasOriginalColor = true; }
+                    }
+                    // Unity renders unsupported shaders bright pink. Some imported assets keep
+                    // a valid shader reference even though its shader variant is unavailable.
+                    bool isErrorPink = hasOriginalColor && originalColor.r > 0.75f &&
+                                       originalColor.g < 0.35f && originalColor.b > 0.75f;
+                    if (!invalidShader && !isErrorPink) continue;
+
+                    bool isPanel = renderer.name.IndexOf("panel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                   renderer.name.IndexOf("solar", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                    Color safeColor = isPanel ? new Color(0.055f, 0.18f, 0.30f) : new Color(0.58f, 0.66f, 0.70f);
+
+                    Material repaired = new Material(fallback)
+                    {
+                        name = original != null ? original.name + " (URP fallback)" : "Recovered scene material"
+                    };
+                    if (original != null && !isErrorPink)
+                    {
+                        if (original.HasProperty("_BaseColor")) repaired.SetColor("_BaseColor", original.GetColor("_BaseColor"));
+                        else if (original.HasProperty("_Color")) repaired.SetColor("_BaseColor", original.GetColor("_Color"));
+                        if (original.HasProperty("_Metallic")) repaired.SetFloat("_Metallic", original.GetFloat("_Metallic"));
+                        if (original.HasProperty("_Smoothness")) repaired.SetFloat("_Smoothness", original.GetFloat("_Smoothness"));
+                    }
+                    else repaired.SetColor("_BaseColor", safeColor);
+                    materials[i] = repaired;
+                    changed = true;
+                    repairedCount++;
+                }
+                if (changed) renderer.materials = materials;
+            }
+
+            if (repairedCount > 0)
+                Debug.LogWarning("ASTRA repaired " + repairedCount + " missing, unsupported, or error-pink scene material(s) using URP Lit.");
+            return repairedCount;
+        }
+
+        /// <summary>
+        /// Swaps the old blockout renderers on every interactive facility for NASA's
+        /// real GLB hardware models. Root colliders stay in place so gameplay keeps working.
+        /// </summary>
+        public static int ApplyNASAHardwareModels(AstraRuntimeModelLoader loader)
+        {
+            if (loader == null) return 0;
+            int replaced = 0;
+            foreach (AstraInteractable facility in Object.FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
+                if (ApplyNASAHardwareModel(facility, loader)) replaced++;
+            return replaced;
+        }
+
+        /// <summary>Uses the NASA Apollo 11 LRO landing-site height mesh as visible lunar ground.</summary>
+        public static void ApplyNASALunarTerrain(AstraRuntimeModelLoader loader)
+        {
+            // Keep the existing playable terrain and all mission interaction anchors.
+            // The LRO STL is a sparse elevation survey, not a finished surface material;
+            // drawing it over the mission terrain created visible holes and hid landmarks.
+        }
+
+        private static bool ApplyNASAHardwareModel(AstraInteractable facility, AstraRuntimeModelLoader loader)
+        {
+            if (facility == null || facility.transform.Find("ASTRA NASA hardware") != null) return false;
+
+            string primaryAsset;
+            string secondaryAsset = null;
+            float targetHeight;
+            switch (facility.facilityType)
+            {
+                case FacilityType.Habitat:
+                case FacilityType.RadiationShelter:
+                    primaryAsset = "HabitatDemonstrationUnit-Part1";
+                    secondaryAsset = "HabitatDemonstrationUnit-Part2";
+                    targetHeight = 4.4f;
+                    break;
+                case FacilityType.Communications:
+                    primaryAsset = "NASADSN70mDish";
+                    targetHeight = 5.6f;
+                    break;
+                // NASA has no corresponding Mars surface weather console model.
+                // Keep the authored colored 3D console below instead of placing a
+                // communications satellite on the ground as a misleading substitute.
+                case FacilityType.SolarArray:
+                    primaryAsset = "NASALunarReconnaissanceOrbiter";
+                    targetHeight = 3.0f;
+                    break;
+                case FacilityType.Rover:
+                    primaryAsset = activeDestination == AstraDestinationId.Mars ? "PerseveranceRover" : "SpaceExplorationVehicle";
+                    targetHeight = 2.7f;
+                    break;
+                case FacilityType.Spacecraft:
+                    primaryAsset = "ApolloLunarModule";
+                    targetHeight = 5.2f;
+                    break;
+                case FacilityType.LifeSupport:
+                case FacilityType.OxygenProcessor:
+                case FacilityType.WaterRecycler:
+                case FacilityType.Greenhouse:
+                case FacilityType.ResearchLab:
+                    // NASA's ISS is the real, flown system containing ECLSS, water
+                    // recovery, oxygen generation, laboratories, and the Veggie garden.
+                    primaryAsset = "NASAInternationalSpaceStation";
+                    targetHeight = 3.8f;
+                    break;
+                default:
+                    return false;
+            }
+
+            GameObject modelGroup = new GameObject("ASTRA NASA hardware");
+            modelGroup.transform.SetParent(facility.transform, false);
+            modelGroup.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            // Never show the temporary primitive blockout as if it were the NASA
+            // hardware. The facility interaction collider stays on the root while
+            // the imported geometry loads beneath this model group.
+            HideBlockoutFacility(facility, modelGroup.transform);
+            loader.LoadInto(primaryAsset, modelGroup.transform, targetHeight, primaryInstance =>
+            {
+                if (primaryInstance == null) return;
+                if (!string.IsNullOrEmpty(secondaryAsset))
+                    loader.LoadInto(secondaryAsset, modelGroup.transform, targetHeight * 0.72f, secondaryInstance =>
+                    {
+                        if (secondaryInstance == null) return;
+                        HideBlockoutFacility(facility, modelGroup.transform);
+                    });
+                else HideBlockoutFacility(facility, modelGroup.transform);
+                Debug.Log("ASTRA replaced " + facility.facilityName + " blockout with imported NASA 3D model " + primaryAsset + ".glb");
+            });
+            return true;
+        }
+
+        private static void HideBlockoutFacility(AstraInteractable facility, Transform importedModelRoot)
+        {
+            foreach (Renderer renderer in facility.GetComponentsInChildren<Renderer>(true))
+                if (renderer.transform != facility.transform && !renderer.transform.IsChildOf(importedModelRoot)) renderer.enabled = false;
+            foreach (Collider collider in facility.GetComponentsInChildren<Collider>(true))
+                if (collider.transform != facility.transform && !collider.transform.IsChildOf(importedModelRoot)) collider.enabled = false;
+        }
 
         public static AstraInteractable EnsureSpaceWeatherStation()
         {
@@ -15,7 +172,7 @@ namespace Astra
                 if (facility.facilityType == FacilityType.SpaceWeatherStation) return facility;
 
             GameObject outpost = GameObject.Find("SHACKLETON OUTPOST");
-            GameObject root = new GameObject("Space Weather Monitoring Station");
+            GameObject root = new GameObject("Mars Dust-Storm Weather Console");
             if (outpost != null)
             {
                 root.transform.SetParent(outpost.transform, false);
@@ -24,8 +181,8 @@ namespace Astra
             else root.transform.position = new Vector3(8f, 0f, 22f);
             AstraInteractable interactable = root.AddComponent<AstraInteractable>();
             interactable.facilityType = FacilityType.SpaceWeatherStation;
-            interactable.facilityName = "Space Weather Monitoring Station";
-            interactable.description = "Review the NASA DONKI event briefing and submit the post-drill inspection report.";
+            interactable.facilityName = "Mars Dust-Storm Weather Console";
+            interactable.description = "Review NASA DONKI space-weather context, read the separate fictional Mars dust-storm drill briefing, then submit the post-drill inspection report.";
             interactable.interactionRange = 5f;
             BoxCollider collider = root.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 1.05f, 0f);
@@ -44,10 +201,16 @@ namespace Astra
         public static AstraInteractable EnsureSpacecraft()
         {
             foreach (AstraInteractable facility in Object.FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
-                if (facility.facilityType == FacilityType.Spacecraft) return facility;
+                if (facility.facilityType == FacilityType.Spacecraft)
+                {
+                    facility.transform.position = new Vector3(8f, 0f, 14f);
+                    return facility;
+                }
 
             GameObject root = new GameObject("ASTRA interplanetary spacecraft");
-            root.transform.position = new Vector3(20f, 0f, 18f);
+            // Keep the repairable spacecraft in the player's forward field of view so it
+            // reads as a real mission landmark while remaining a usable interaction target.
+            root.transform.position = new Vector3(8f, 0f, 14f);
             AstraInteractable interactable = root.AddComponent<AstraInteractable>();
             interactable.facilityType = FacilityType.Spacecraft;
             interactable.facilityName = "Interplanetary spacecraft";
@@ -75,10 +238,15 @@ namespace Astra
         public static void ApplyDestination(AstraDestinationId destination)
         {
             UpgradeGeneratedOutpostVisuals();
+            activeDestination = destination;
             GameObject terrain = FindSceneObject("Regolith terrain mesh");
             Renderer terrainRenderer = terrain != null ? terrain.GetComponent<Renderer>() : null;
+            GameObject lunarTerrainMesh = FindSceneObject("NASA Apollo11LandingSite");
+            bool useLunarTerrain = destination == AstraDestinationId.Moon && lunarTerrainMesh != null;
+            if (lunarTerrainMesh != null) lunarTerrainMesh.SetActive(useLunarTerrain);
             if (terrainRenderer != null)
             {
+                terrainRenderer.enabled = !useLunarTerrain;
                 Color color = destination == AstraDestinationId.Mars ? new Color(0.58f, 0.32f, 0.24f) :
                     destination == AstraDestinationId.Europa ? new Color(0.34f, 0.47f, 0.55f) : new Color(0.40f, 0.36f, 0.49f);
                 Material surface = terrainRenderer.material;
@@ -88,8 +256,13 @@ namespace Astra
             }
             Camera missionCamera = Camera.main;
             if (missionCamera != null)
+            {
                 missionCamera.backgroundColor = destination == AstraDestinationId.Mars ? new Color(0.055f, 0.018f, 0.012f) :
                     destination == AstraDestinationId.Europa ? new Color(0.008f, 0.025f, 0.065f) : new Color(0.004f, 0.006f, 0.016f);
+                missionCamera.clearFlags = CameraClearFlags.SolidColor;
+                missionCamera.farClipPlane = Mathf.Max(missionCamera.farClipPlane, 1200f);
+            }
+            EnsureLunarStarfield();
             RenderSettings.ambientLight = destination == AstraDestinationId.Mars ? new Color(0.34f, 0.19f, 0.14f) :
                 destination == AstraDestinationId.Europa ? new Color(0.20f, 0.29f, 0.40f) : new Color(0.25f, 0.23f, 0.34f);
             GameObject foregroundRidge = FindSceneObject("South-pole highlands foreground");
@@ -111,20 +284,67 @@ namespace Astra
             SetDestinationSkyBody(destination);
         }
 
+        /// <summary>Gives the airless destination skies a stable, distant field of stars.</summary>
+        private static void EnsureLunarStarfield()
+        {
+            if (FindSceneObject("ASTRA deep-space starfield") != null) return;
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) return;
+
+            GameObject field = new GameObject("ASTRA deep-space starfield");
+            ParticleSystem stars = field.AddComponent<ParticleSystem>();
+            ParticleSystem.MainModule main = stars.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.maxParticles = 2400;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startLifetime = 100000f;
+            main.startSpeed = 0f;
+            main.startSize = 0.85f;
+            main.startColor = Color.white;
+            ParticleSystem.EmissionModule emission = stars.emission;
+            emission.enabled = false;
+            ParticleSystem.ShapeModule shape = stars.shape;
+            shape.enabled = false;
+            ParticleSystemRenderer particleRenderer = field.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            particleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            particleRenderer.receiveShadows = false;
+            particleRenderer.material = new Material(shader) { name = "ASTRA distant stars" };
+            if (particleRenderer.material.HasProperty("_BaseColor")) particleRenderer.material.SetColor("_BaseColor", Color.white);
+            if (particleRenderer.material.HasProperty("_Color")) particleRenderer.material.SetColor("_Color", Color.white);
+
+            UnityEngine.Random.State savedRandom = UnityEngine.Random.state;
+            UnityEngine.Random.InitState(61204);
+            for (int i = 0; i < 2100; i++)
+            {
+                ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams();
+                particle.position = UnityEngine.Random.onUnitSphere * 420f;
+                particle.startSize = UnityEngine.Random.Range(0.28f, 0.9f);
+                float tint = UnityEngine.Random.Range(0.78f, 1f);
+                particle.startColor = new Color(tint * 0.88f, tint * 0.94f, tint, 1f);
+                particle.startLifetime = 100000f;
+                particle.velocity = Vector3.zero;
+                stars.Emit(particle, 1);
+            }
+            UnityEngine.Random.state = savedRandom;
+            stars.Play();
+        }
+
         public static void SetSpacecraftRepaired(bool repaired)
         {
             AstraInteractable ship = EnsureSpacecraft();
             if (ship == null) return;
-            Transform panel = ship.transform.Find("Spacecraft damaged service panel");
-            Renderer renderer = panel != null ? panel.GetComponent<Renderer>() : null;
-            if (renderer != null)
+            Color color = repaired ? new Color(0.12f, 0.78f, 0.38f) : new Color(0.95f, 0.22f, 0.12f);
+            foreach (Renderer renderer in ship.GetComponentsInChildren<Renderer>(true))
             {
-                Color color = repaired ? new Color(0.12f, 0.78f, 0.38f) : new Color(0.76f, 0.20f, 0.15f);
-                renderer.material.color = color;
-                if (renderer.material.HasProperty("_EmissionColor"))
+                foreach (Material material in renderer.materials)
                 {
-                    renderer.material.EnableKeyword("_EMISSION");
-                    renderer.material.SetColor("_EmissionColor", color * (repaired ? 0.5f : 0.25f));
+                    if (!material.HasProperty("_EmissionColor")) continue;
+                    material.EnableKeyword("_EMISSION");
+                    material.SetColor("_EmissionColor", color * (repaired ? 0.18f : 0.08f));
                 }
             }
         }

@@ -13,6 +13,7 @@ namespace Astra
 
         private AstraOnboardingUI ui;
         private AstraGameManager game;
+        private AstraEarthLaunchSequence earthLaunch;
         private TutorialManager tutorial;
         private AstroCompanionController astro;
         private bool continueToTutorialAfterSettings;
@@ -39,9 +40,16 @@ namespace Astra
         {
             ui = FindFirstObjectByType<AstraOnboardingUI>();
             game = AstraGameManager.Instance != null ? AstraGameManager.Instance : FindFirstObjectByType<AstraGameManager>();
+            if (game != null)
+            {
+                earthLaunch = game.GetComponent<AstraEarthLaunchSequence>();
+                if (earthLaunch == null) earthLaunch = game.gameObject.AddComponent<AstraEarthLaunchSequence>();
+            }
             tutorial = GetComponent<TutorialManager>();
             astro = FindFirstObjectByType<AstroCompanionController>();
-            SelectedMissionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ASTRA_SELECTED_MISSION", 0), 0, AstraMissionCatalog.Count - 1);
+            // Mission IDs changed with the five-mission campaign; avoid interpreting
+            // an old selection index as a different mission on the new board.
+            SelectedMissionIndex = Mathf.Clamp(PlayerPrefs.GetInt("ASTRA_SELECTED_MISSION_V3", 0), 0, AstraMissionCatalog.Count - 1);
             if (tutorial != null) tutorial.StepChanged += TutorialStepChanged;
             Invoke(nameof(ShowWelcome), 0f);
         }
@@ -191,7 +199,7 @@ namespace Astra
         public void SelectMission(int index)
         {
             SelectedMissionIndex = Mathf.Clamp(index, 0, AstraMissionCatalog.Count - 1);
-            PlayerPrefs.SetInt("ASTRA_SELECTED_MISSION", SelectedMissionIndex);
+            PlayerPrefs.SetInt("ASTRA_SELECTED_MISSION_V3", SelectedMissionIndex);
             PlayerPrefs.Save();
             ui?.UpdateMissionSelection(SelectedMissionIndex, AstraCampaignProgress.HighestUnlocked);
         }
@@ -203,12 +211,62 @@ namespace Astra
                 ui?.ShowMissionLockedMessage();
                 return;
             }
+            if (SelectedMissionIndex == (int)AstraMissionId.FirstLight)
+            {
+                LaunchFromEarth();
+                return;
+            }
             if (ui != null) ui.HideAll();
             hud()?.SetMissionHudVisible(true);
             IsMissionSelectOpen = false;
             if (tutorial != null) tutorial.Stop();
             FindFirstObjectByType<AstraPlayerController>()?.ResetForMission();
             game?.BeginMission((AstraMissionId)SelectedMissionIndex);
+        }
+
+        /// <summary>Starts First Light with the preserved Earth launch and lunar arrival sequence.</summary>
+        public void LaunchFromEarth()
+        {
+            if (!AstraCampaignProgress.IsMissionAvailable(AstraMissionId.FirstLight))
+            {
+                ui?.ShowMissionLockedMessage();
+                return;
+            }
+            if (game != null && game.missionStarted && !game.missionFinished) return;
+
+            SelectedMissionIndex = (int)AstraMissionId.FirstLight;
+            PlayerPrefs.SetInt("ASTRA_SELECTED_MISSION_V3", SelectedMissionIndex);
+            PlayerPrefs.Save();
+            IsMissionSelectOpen = false;
+            ui?.HideAll();
+            hud()?.SetMissionHudVisible(false);
+            if (tutorial != null) tutorial.Stop();
+            FindFirstObjectByType<AstraPlayerController>()?.ResetForMission();
+
+            if (earthLaunch == null && game != null)
+                earthLaunch = game.GetComponent<AstraEarthLaunchSequence>() ?? game.gameObject.AddComponent<AstraEarthLaunchSequence>();
+
+            if (earthLaunch == null)
+            {
+                hud()?.SetMissionHudVisible(true);
+                game?.BeginMission(AstraMissionId.FirstLight);
+                return;
+            }
+
+            earthLaunch.Begin(
+                () =>
+                {
+                    hud()?.SetMissionHudVisible(true);
+                    game?.BeginMission(AstraMissionId.FirstLight);
+                },
+                ReturnToMissionBoard);
+        }
+
+        public void ReturnToMissionBoard()
+        {
+            IsMissionSelectOpen = true;
+            hud()?.SetMissionHudVisible(false);
+            ui?.ShowMissionSelect(SelectedMissionIndex, AstraCampaignProgress.HighestUnlocked);
         }
 
         public bool HandlePracticeInteraction(AstraInteractable facility) => tutorial != null && tutorial.HandlePracticeInteraction(facility);

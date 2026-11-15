@@ -52,6 +52,13 @@ namespace Astra
         public bool ConsumeTouchInteract() { bool queued = touchInteractQueued; touchInteractQueued = false; return queued; }
         public bool ConsumeTouchRoverExit() { bool queued = touchRoverExitQueued; touchRoverExitQueued = false; return queued; }
 
+        public void RefreshAstronautRenderers()
+        {
+            astronautRenderers = GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer item in astronautRenderers)
+                if (item != null) item.enabled = !IsMountedInRover;
+        }
+
         private void Awake()
         {
             controller = GetComponent<CharacterController>();

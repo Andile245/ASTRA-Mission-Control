@@ -28,7 +28,7 @@ public static class AstraWindowsBuild
             scenes = scenes,
             locationPathName = OutputPath,
             target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.None
+            options = BuildOptions.AutoRunPlayer
         });
 
         Debug.Log($"ASTRA Windows build: {report.summary.result} ({report.summary.totalSize / (1024 * 1024)} MB) at {OutputPath}");

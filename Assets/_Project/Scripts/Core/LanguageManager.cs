@@ -16,7 +16,7 @@ namespace Astra
             { "welcome.setup", new[] { "MEET ASTRO · PRACTISE · CHOOSE A MISSION", "HLANGANA NO-ASTRO · ZIJWAYEZE · KHETHA UMSEBENZI", "ONTMOET ASTRO · OEFEN · KIES 'N SENDING" } },
             { "welcome.returning", new[] { "WELCOME BACK · PRACTISE OR CHOOSE A MISSION", "WAMUKELWE FUTHI · ZIJWAYEZE NOMA UKHETHE UMSEBENZI", "WELKOM TERUG · OEFEN OF KIES 'N SENDING" } },
             { "welcome.start", new[] { "LET'S GET READY", "ASIQALE", "KOM ONS BEGIN" } },
-            { "welcome.skip", new[] { "I KNOW HOW TO PLAY — SKIP TUTORIAL", "NGIYAKWAZI UKUDLALA — YEQA", "EK WEET HOE OM TE SPEEL — SKIP" } },
+            { "welcome.skip", new[] { "SKIP TUTORIAL", "NGIYAKWAZI UKUDLALA — YEQA", "EK WEET HOE OM TE SPEEL — SKIP" } },
             { "welcome.settings", new[] { "CHANGE MY SETTINGS", "SHINTSHA IZILUNGISELELO", "VERANDER INSTELLINGS" } },
             { "settings.title", new[] { "MAKE ASTRA FIT YOU", "YENZA I-ASTRA IKULUNGELE", "STEL ASTRA VIR JOU IN" } },
             { "settings.language", new[] { "LANGUAGE", "ULIMI", "TAAL" } },
