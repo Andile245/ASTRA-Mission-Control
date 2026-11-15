@@ -30,6 +30,11 @@ namespace Astra
         private bool hasClickMoveTarget;
         private AstraRoverDrive mountedRover;
         private Renderer[] astronautRenderers;
+        private Vector2 touchMoveInput;
+        private Vector2 touchLookInput;
+        private bool touchJumpQueued;
+        private bool touchInteractQueued;
+        private bool touchRoverExitQueued;
 
         public float MoveAmount => moveAmount;
         public bool IsSprinting => sprinting;
@@ -37,6 +42,15 @@ namespace Astra
         public float VerticalSpeed => verticalSpeed;
         public bool IsMountedInRover => mountedRover != null && mountedRover.IsDriving;
         public AstraRoverDrive MountedRover => mountedRover;
+        public Vector2 TouchMoveInput => touchMoveInput;
+
+        public void SetTouchMove(Vector2 input) => touchMoveInput = Vector2.ClampMagnitude(input, 1f);
+        public void SetTouchLook(Vector2 input) => touchLookInput = Vector2.ClampMagnitude(input, 1f);
+        public void QueueTouchJump() => touchJumpQueued = true;
+        public void QueueTouchInteract() => touchInteractQueued = true;
+        public void QueueTouchRoverExit() => touchRoverExitQueued = true;
+        public bool ConsumeTouchInteract() { bool queued = touchInteractQueued; touchInteractQueued = false; return queued; }
+        public bool ConsumeTouchRoverExit() { bool queued = touchRoverExitQueued; touchRoverExitQueued = false; return queued; }
 
         private void Awake()
         {
@@ -67,6 +81,9 @@ namespace Astra
             {
                 moveAmount = 0f;
                 sprinting = false;
+                touchMoveInput = Vector2.zero;
+                touchLookInput = Vector2.zero;
+                touchJumpQueued = touchInteractQueued = touchRoverExitQueued = false;
                 return;
             }
 
@@ -88,9 +105,15 @@ namespace Astra
             {
                 yaw += joystick.twist.ReadValue() * gamepadLookSpeed * Time.deltaTime;
             }
+            if (touchLookInput.sqrMagnitude > 0.001f)
+            {
+                yaw += touchLookInput.x * gamepadLookSpeed * Time.deltaTime;
+                pitch = Mathf.Clamp(pitch - touchLookInput.y * gamepadLookSpeed * Time.deltaTime, 8f, 45f);
+            }
 
             if (IsMountedInRover)
             {
+                touchJumpQueued = false;
                 transform.position = mountedRover.transform.position;
                 moveAmount = 0f;
                 sprinting = false;
@@ -117,6 +140,7 @@ namespace Astra
                 move += joystick.stick.ReadValue();
                 if (joystick.hatswitch != null) move += joystick.hatswitch.ReadValue();
             }
+            move += touchMoveInput;
 
             if (settings != null && settings.ClickToMove && mouse != null && mouse.leftButton.wasPressedThisFrame &&
                 (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
@@ -150,7 +174,9 @@ namespace Astra
                 verticalSpeed = -1.5f;
                 bool keyboardJump = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
                 bool gamepadJump = gamepad != null && gamepad.buttonSouth.wasPressedThisFrame;
-                if (keyboardJump || gamepadJump)
+                bool touchJump = touchJumpQueued;
+                touchJumpQueued = false;
+                if (keyboardJump || gamepadJump || touchJump)
                     verticalSpeed = Mathf.Sqrt(jumpHeight * 2f * LunarGravity);
             }
             else verticalSpeed -= LunarGravity * Time.deltaTime;
@@ -165,7 +191,8 @@ namespace Astra
             bool keyboardInteract = keyboard != null && keyboard[interact].wasPressedThisFrame;
             bool gamepadInteract = gamepad != null && gamepad.buttonWest.wasPressedThisFrame;
             bool joystickInteract = joystick != null && joystick.trigger.wasPressedThisFrame;
-            if (keyboardInteract || gamepadInteract || joystickInteract)
+            bool touchInteract = ConsumeTouchInteract();
+            if (keyboardInteract || gamepadInteract || joystickInteract || touchInteract)
                 game.TryInteract(transform.position);
 
         }
@@ -242,6 +269,8 @@ namespace Astra
             cameraVelocity = Vector3.zero;
             yaw = 0f;
             pitch = 18f;
+            touchMoveInput = touchLookInput = Vector2.zero;
+            touchJumpQueued = touchInteractQueued = touchRoverExitQueued = false;
         }
 
         public void MountRover(AstraRoverDrive rover)

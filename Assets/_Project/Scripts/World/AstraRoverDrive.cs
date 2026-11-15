@@ -59,6 +59,7 @@ namespace Astra
                 if (keyboard[left].isPressed || keyboard.leftArrowKey.isPressed) input.x -= 1f;
             }
             if (gamepad != null) input += gamepad.leftStick.ReadValue() + gamepad.dpad.ReadValue();
+            if (player != null) input += player.TouchMoveInput;
             input = Vector2.ClampMagnitude(input, 1f);
 
             transform.Rotate(Vector3.up, input.x * steeringSpeed * Time.deltaTime, Space.World);
@@ -72,10 +73,14 @@ namespace Astra
             }
 
             Key interactKey = settings != null ? settings.GetKey(AstraBinding.Interact) : Key.E;
-            bool collectPressed = keyboard != null && keyboard[interactKey].wasPressedThisFrame ||
-                                  gamepad != null && gamepad.buttonWest.wasPressedThisFrame;
-            bool exitPressed = keyboard != null && keyboard.qKey.wasPressedThisFrame ||
-                               gamepad != null && gamepad.buttonEast.wasPressedThisFrame;
+            bool keyboardCollect = keyboard != null && keyboard[interactKey].wasPressedThisFrame;
+            bool gamepadCollect = gamepad != null && gamepad.buttonWest.wasPressedThisFrame;
+            bool touchCollect = player != null && player.ConsumeTouchInteract();
+            bool collectPressed = keyboardCollect || gamepadCollect || touchCollect;
+            bool keyboardExit = keyboard != null && keyboard.qKey.wasPressedThisFrame;
+            bool gamepadExit = gamepad != null && gamepad.buttonEast.wasPressedThisFrame;
+            bool touchExit = player != null && player.ConsumeTouchRoverExit();
+            bool exitPressed = keyboardExit || gamepadExit || touchExit;
             if (collectPressed)
             {
                 if (IsAtSample) CollectSample();

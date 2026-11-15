@@ -4,6 +4,7 @@ using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
@@ -18,7 +19,8 @@ namespace Astra
         private Canvas canvas;
         private Font font;
         private Text clockText, statusText, objectiveText, progressText, facilityText, messageText;
-        private Text missionCodeText, missionTitleText, missionDescriptionText;
+        private Text activeObjectiveText;
+        private Text missionCodeText, missionTitleText;
         private Text reportTitleText, reportScoreText, reportBodyText, reportLearningText;
         private Button launchDestinationButton;
         private Text briefingBodyText;
@@ -26,6 +28,8 @@ namespace Astra
         private Image oxygenFill, waterFill, foodFill, powerFill, progressFill;
         private GameObject introPanel, pausePanel, eventPanel, reportPanel, briefingPanel, facilityPanel, tutorialPanel, resourceAlertPanel;
         private GameObject stormPanel;
+        private GameObject objectiveListPanel, touchControlsPanel;
+        private Button pauseButton, useActionButton, exitRoverButton;
         private Button eventPrimaryButton, eventSecondaryButton, stormActionButton, stormLinkButton;
         private Text stormTitleText, stormBodyText;
         private bool stormPanelShowsDonki;
@@ -34,6 +38,8 @@ namespace Astra
         private Text scienceDataText, eventCopyText;
         private int tutorialStep;
         private bool resumeMissionAfterTutorial;
+        private bool objectiveListVisible;
+        private static Sprite capsuleSprite;
         private static readonly string[] TutorialTitles = { "Move around the outpost.", "Walk up to a facility.", "Watch your resources." };
         private static readonly string[] TutorialBodies = {
             "Use the keys to explore the landing site. Take your time; there is no rush.",
@@ -67,6 +73,8 @@ namespace Astra
         {
             if (!built || game == null) return;
             refreshClock += Time.unscaledDeltaTime;
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.vKey.wasPressedThisFrame) ToggleObjectiveList();
             if (refreshClock < 0.2f) return;
             refreshClock = 0f;
             Refresh(game);
@@ -109,21 +117,36 @@ namespace Astra
 
         private void BuildTopBar()
         {
-            GameObject bar = Panel("TopBar", root, Navy, new Vector2(0.02f, 1f), new Vector2(0.98f, 1f), new Vector2(0f, -106f), new Vector2(0f, -16f));
-            Text brand = TextBlock(bar.transform, "ASTRA  /  MISSION CONTROL", 25, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(brand.rectTransform, new Vector2(0f, 0f), new Vector2(0.34f, 1f), new Vector2(28f, 0f), new Vector2(0f, 0f));
-            missionCodeText = TextBlock(bar.transform, "MOON OUTPOST  •  MISSION 01", 15, Muted, FontStyle.Normal, TextAnchor.MiddleCenter);
-            SetRect(missionCodeText.rectTransform, new Vector2(0.34f, 0f), new Vector2(0.60f, 1f), Vector2.zero, Vector2.zero);
-            clockText = TextBlock(bar.transform, "00:00", 22, Cyan, FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(clockText.rectTransform, new Vector2(0.86f, 0f), new Vector2(0.98f, 1f), Vector2.zero, new Vector2(-22f, 0f));
+            missionCodeText = TextBlock(root, "MOON OUTPOST  /  MISSION 01", 14, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(missionCodeText.rectTransform, new Vector2(0f, 1f), new Vector2(0.28f, 1f), new Vector2(24f, -26f), new Vector2(0f, -5f));
 
-            GameObject resources = Panel("ResourceBar", root, new Color(0.035f, 0.075f, 0.12f, 0.88f), new Vector2(0.09f, 1f), new Vector2(0.91f, 1f), new Vector2(0f, -186f), new Vector2(0f, -119f));
-            oxygenText = AddResource(resources.transform, "O₂   OXYGEN", 0.015f, out oxygenFill);
-            waterText = AddResource(resources.transform, "H₂O   WATER", 0.265f, out waterFill);
-            foodText = AddResource(resources.transform, "▤   FOOD", 0.515f, out foodFill);
-            powerText = AddResource(resources.transform, "ϟ   POWER", 0.765f, out powerFill);
-            statusText = TextBlock(bar.transform, "OUTPOST  /  INITIALIZING", 13, new Color(0.45f, 1f, 0.75f), FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(statusText.rectTransform, new Vector2(0.60f, 0f), new Vector2(0.86f, 1f), Vector2.zero, Vector2.zero);
+            GameObject resources = Panel("ResourceBar", root, new Color(0.08f, 0.075f, 0.16f, 0.88f),
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -108f), new Vector2(350f, -38f));
+            StyleCapsule(resources, new Color(0.66f, 0.63f, 0.82f, 0.55f));
+            oxygenText = AddResource(resources.transform, "O₂", 0.015f, out oxygenFill);
+            waterText = AddResource(resources.transform, "H₂O", 0.265f, out waterFill);
+            foodText = AddResource(resources.transform, "FOOD", 0.515f, out foodFill);
+            powerText = AddResource(resources.transform, "PWR", 0.765f, out powerFill);
+
+            GameObject visibility = Panel("ObjectiveVisibilityButton", root, new Color(0.43f, 0.31f, 0.61f, 0.95f),
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(368f, -97f), new Vector2(422f, -43f));
+            StyleCapsule(visibility, new Color(0.82f, 0.76f, 0.94f, 0.70f));
+            Button toggle = visibility.AddComponent<Button>();
+            toggle.onClick.AddListener(ToggleObjectiveList);
+            Text eye = TextBlock(visibility.transform, "◉\nV", 13, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(eye.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+            statusText = TextBlock(root, "OUTPOST  /  INITIALIZING", 12, new Color(0.56f, 1f, 0.82f), FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(statusText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-206f, -91f), new Vector2(-96f, -43f));
+            clockText = TextBlock(root, "00:00", 14, Color.white, FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(clockText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-278f, -91f), new Vector2(-210f, -43f));
+            GameObject pause = Panel("PauseButton", root, new Color(0.29f, 0.24f, 0.40f, 0.94f),
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-73f, -96f), new Vector2(-20f, -43f));
+            StyleCapsule(pause, new Color(0.82f, 0.76f, 0.94f, 0.70f));
+            pauseButton = pause.AddComponent<Button>();
+            pauseButton.onClick.AddListener(() => game?.TogglePause());
+            Text pauseGlyph = TextBlock(pause.transform, "Ⅱ", 19, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(pauseGlyph.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         }
 
         private void BuildResourceAlert()
@@ -143,9 +166,9 @@ namespace Astra
             RectTransform rt = slot.GetComponent<RectTransform>();
             SetRect(rt, new Vector2(x, 0.08f), new Vector2(x + 0.235f, 0.92f), Vector2.zero, Vector2.zero);
             Text labelText = TextBlock(slot.transform, label, 13, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(labelText.rectTransform, new Vector2(0f, 0.46f), new Vector2(0.72f, 1f), Vector2.zero, Vector2.zero);
+            SetRect(labelText.rectTransform, new Vector2(0f, 0.46f), new Vector2(0.43f, 1f), Vector2.zero, Vector2.zero);
             Text valueText = TextBlock(slot.transform, "100%", 16, Color.white, FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(valueText.rectTransform, new Vector2(0.72f, 0.46f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            SetRect(valueText.rectTransform, new Vector2(0.43f, 0.46f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
             GameObject track = Panel("MeterTrack", slot.transform, new Color(0.18f, 0.25f, 0.33f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 4f), new Vector2(0f, 7f));
             fill = Panel("MeterFill", track.transform, Cyan, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, Vector2.zero).GetComponent<Image>();
             fill.type = Image.Type.Filled;
@@ -156,49 +179,121 @@ namespace Astra
 
         private void BuildObjectives()
         {
-            GameObject panel = Panel("Objectives", root, Navy, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -207f), new Vector2(360f, 358f));
-            Text kicker = TextBlock(panel.transform, "MISSION 01   /   ARRIVAL", 13, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(kicker.rectTransform, new Vector2(0f, 0.83f), new Vector2(0.66f, 1f), new Vector2(22f, -4f), Vector2.zero);
-            MakeButton(panel.transform, "SCIENCE / DATA  ↗", () => briefingPanel?.SetActive(true), new Vector2(0.65f, 0.86f), new Vector2(0.96f, 0.98f), new Color(0.04f, 0.18f, 0.24f), 11);
-            missionTitleText = TextBlock(panel.transform, "First Light", 26, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(missionTitleText.rectTransform, new Vector2(0f, 0.70f), new Vector2(1f, 0.85f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
-            missionDescriptionText = TextBlock(panel.transform, "Bring the outpost online and keep critical systems stable.", 14, Muted, FontStyle.Normal, TextAnchor.UpperLeft);
-            missionDescriptionText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            SetRect(missionDescriptionText.rectTransform, new Vector2(0f, 0.55f), new Vector2(1f, 0.72f), new Vector2(22f, 0f), new Vector2(-18f, 0f));
-            objectiveText = TextBlock(panel.transform, "", 15, Color.white, FontStyle.Normal, TextAnchor.UpperLeft);
-            objectiveText.lineSpacing = 1.18f;
-            SetRect(objectiveText.rectTransform, new Vector2(0f, 0.13f), new Vector2(1f, 0.54f), new Vector2(22f, -4f), new Vector2(-18f, 0f));
-            progressText = TextBlock(panel.transform, "MISSION PROGRESS     0 / 5", 12, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(progressText.rectTransform, new Vector2(0f, 0.04f), new Vector2(0.9f, 0.13f), new Vector2(22f, 0f), Vector2.zero);
-            GameObject track = Panel("ProgressTrack", panel.transform, new Color(0.18f, 0.25f, 0.33f, 1f), new Vector2(0f, 0f), new Vector2(0.9f, 0f), new Vector2(22f, 12f), new Vector2(-16f, 19f));
+            GameObject panel = Panel("Objectives", root, new Color(0.08f, 0.075f, 0.16f, 0.91f),
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-200f, -118f), new Vector2(200f, -22f));
+            StyleCapsule(panel, new Color(0.66f, 0.63f, 0.82f, 0.55f));
+            Text kicker = TextBlock(panel.transform, "CURRENT OBJECTIVE", 11, new Color(0.82f, 0.76f, 0.94f), FontStyle.Bold, TextAnchor.MiddleLeft);
+            SetRect(kicker.rectTransform, new Vector2(0f, 0.73f), new Vector2(0.69f, 1f), new Vector2(18f, 0f), Vector2.zero);
+            missionTitleText = TextBlock(panel.transform, "FIRST LIGHT", 11, Muted, FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(missionTitleText.rectTransform, new Vector2(0.61f, 0.73f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(-18f, 0f));
+            activeObjectiveText = TextBlock(panel.transform, "Connect communications", 16, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            activeObjectiveText.fontSize = 14;
+            activeObjectiveText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            SetRect(activeObjectiveText.rectTransform, new Vector2(0f, 0.33f), new Vector2(0.83f, 0.78f), new Vector2(18f, 0f), Vector2.zero);
+            progressText = TextBlock(panel.transform, "0/5", 13, Color.white, FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(progressText.rectTransform, new Vector2(0.83f, 0.28f), new Vector2(1f, 0.78f), new Vector2(0f, 0f), new Vector2(-18f, 0f));
+            GameObject track = Panel("ProgressTrack", panel.transform, new Color(0.24f, 0.21f, 0.34f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(18f, 11f), new Vector2(-18f, 16f));
             progressFill = Panel("ProgressFill", track.transform, Cyan, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, Vector2.zero).GetComponent<Image>();
             progressFill.type = Image.Type.Filled;
             progressFill.fillMethod = Image.FillMethod.Horizontal;
+
+            objectiveListPanel = Panel("ObjectiveChecklist", root, new Color(0.08f, 0.075f, 0.16f, 0.93f),
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-200f, -378f), new Vector2(200f, -128f));
+            StyleCapsule(objectiveListPanel, new Color(0.66f, 0.63f, 0.82f, 0.55f));
+            objectiveText = TextBlock(objectiveListPanel.transform, "", 14, Color.white, FontStyle.Normal, TextAnchor.UpperLeft);
+            objectiveText.lineSpacing = 1.15f;
+            SetRect(objectiveText.rectTransform, Vector2.zero, Vector2.one, new Vector2(18f, -14f), new Vector2(-18f, 14f));
+            objectiveListPanel.SetActive(false);
         }
 
         private void BuildBottomBar()
         {
-            GameObject bar = Panel("BottomBar", root, new Color(0.025f, 0.055f, 0.10f, 0.85f), new Vector2(0.02f, 0f), new Vector2(0.98f, 0f), new Vector2(0f, 18f), new Vector2(0f, 65f));
-            Text controls = TextBlock(bar.transform, "WASD / LEFT STICK MOVE    SHIFT / LB SPRINT    SPACE / A HOP    E / X USE    MOUSE / RIGHT STICK LOOK", 12, Muted, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0.82f, 1f), new Vector2(18f, 0f), Vector2.zero);
-            Text comms = TextBlock(bar.transform, "COMMS  /  STANDBY", 13, Cyan, FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(comms.rectTransform, new Vector2(0.82f, 0f), new Vector2(1f, 1f), Vector2.zero, new Vector2(-20f, 0f));
+            touchControlsPanel = new GameObject("TouchControls", typeof(RectTransform));
+            touchControlsPanel.transform.SetParent(root, false);
+            SetRect(touchControlsPanel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+            CreateControlButton(touchControlsPanel.transform, "W", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.098f, 0.205f), new Vector2(0.146f, 0.294f), new Vector2(0f, 1f), false);
+            CreateControlButton(touchControlsPanel.transform, "A", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.048f, 0.115f), new Vector2(0.096f, 0.204f), new Vector2(-1f, 0f), false);
+            CreateControlButton(touchControlsPanel.transform, "S", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.098f, 0.115f), new Vector2(0.146f, 0.204f), new Vector2(0f, -1f), false);
+            CreateControlButton(touchControlsPanel.transform, "D", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.148f, 0.115f), new Vector2(0.196f, 0.204f), new Vector2(1f, 0f), false);
+
+            CreateControlButton(touchControlsPanel.transform, "◀", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.195f, 0.115f), new Vector2(-0.147f, 0.204f), new Vector2(-1f, 0f), true);
+            CreateControlButton(touchControlsPanel.transform, "▼", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.145f, 0.025f), new Vector2(-0.097f, 0.114f), new Vector2(0f, -1f), true);
+            CreateControlButton(touchControlsPanel.transform, "▲", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.145f, 0.205f), new Vector2(-0.097f, 0.294f), new Vector2(0f, 1f), true);
+            CreateControlButton(touchControlsPanel.transform, "▶", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.095f, 0.115f), new Vector2(-0.047f, 0.204f), new Vector2(1f, 0f), true);
+            useActionButton = CreateActionButton(touchControlsPanel.transform, "USE", new Vector2(0.76f, 0f), new Vector2(0.76f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchInteract(), new Color(0.10f, 0.47f, 0.49f, 0.90f));
+            CreateActionButton(touchControlsPanel.transform, "JUMP", new Vector2(0.69f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchJump(), new Color(0.25f, 0.23f, 0.38f, 0.90f));
+            exitRoverButton = CreateActionButton(touchControlsPanel.transform, "EXIT", new Vector2(0.69f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 82f), new Vector2(66f, 132f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchRoverExit(), new Color(0.38f, 0.22f, 0.32f, 0.92f));
+            exitRoverButton.gameObject.SetActive(false);
+            Text hint = TextBlock(root, "WASD MOVE  ·  E USE  ·  V TASKS  ·  ESC PAUSE", 11, new Color(0.85f, 0.85f, 0.92f, 0.9f), FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(hint.rectTransform, new Vector2(0.29f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 8f), new Vector2(0f, 34f));
+        }
+
+        private void CreateControlButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, Vector2 input, bool look)
+        {
+            GameObject buttonObject = Panel("Control_" + label, parent, new Color(0.34f, 0.31f, 0.46f, 0.68f), anchorMin, anchorMax, offsetMin, offsetMax);
+            StyleCapsule(buttonObject, new Color(0.78f, 0.76f, 0.88f, 0.45f));
+            Button button = buttonObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.ColorTint;
+            EventTrigger trigger = buttonObject.AddComponent<EventTrigger>();
+            AddPointerEvent(trigger, EventTriggerType.PointerDown, _ =>
+            {
+                AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
+                if (player == null) return;
+                if (look) player.SetTouchLook(input); else player.SetTouchMove(input);
+            });
+            AddPointerEvent(trigger, EventTriggerType.PointerUp, _ =>
+            {
+                AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
+                if (player == null) return;
+                if (look) player.SetTouchLook(Vector2.zero); else player.SetTouchMove(Vector2.zero);
+            });
+            AddPointerEvent(trigger, EventTriggerType.PointerExit, _ =>
+            {
+                AstraPlayerController player = FindFirstObjectByType<AstraPlayerController>();
+                if (player == null) return;
+                if (look) player.SetTouchLook(Vector2.zero); else player.SetTouchMove(Vector2.zero);
+            });
+            Text text = TextBlock(buttonObject.transform, label, 18, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        }
+
+        private Button CreateActionButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, Action action, Color color)
+        {
+            GameObject buttonObject = Panel("Action_" + label, parent, color, anchorMin, anchorMax, offsetMin, offsetMax);
+            StyleCapsule(buttonObject, new Color(0.82f, 0.76f, 0.94f, 0.55f));
+            Button button = buttonObject.AddComponent<Button>();
+            button.onClick.AddListener(() => action?.Invoke());
+            Text text = TextBlock(buttonObject.transform, label, 11, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            return button;
+        }
+
+        private static void AddPointerEvent(EventTrigger trigger, EventTriggerType type, Action<BaseEventData> callback)
+        {
+            EventTrigger.Entry entry = new EventTrigger.Entry { eventID = type };
+            entry.callback.AddListener(data => callback?.Invoke(data));
+            trigger.triggers.Add(entry);
         }
 
         private void BuildFacilityPanel()
         {
-            facilityPanel = Panel("FacilityPrompt", root, Navy, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 82f), new Vector2(350f, 122f));
+            facilityPanel = Panel("FacilityPrompt", root, new Color(0.08f, 0.075f, 0.16f, 0.91f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-270f, 150f), new Vector2(270f, 222f));
+            StyleCapsule(facilityPanel, new Color(0.66f, 0.63f, 0.82f, 0.55f));
             Text eyebrow = TextBlock(facilityPanel.transform, "FACILITY IN RANGE", 12, Cyan, FontStyle.Bold, TextAnchor.MiddleLeft);
-            SetRect(eyebrow.rectTransform, new Vector2(0f, 0.7f), new Vector2(1f, 1f), new Vector2(18f, 0f), new Vector2(-15f, 0f));
+            SetRect(eyebrow.rectTransform, new Vector2(0f, 0.62f), new Vector2(1f, 1f), new Vector2(18f, 0f), new Vector2(-15f, 0f));
             facilityText = TextBlock(facilityPanel.transform, "", 15, Color.white, FontStyle.Normal, TextAnchor.UpperLeft);
-            SetRect(facilityText.rectTransform, new Vector2(0f, 0.1f), new Vector2(1f, 0.72f), new Vector2(18f, 0f), new Vector2(-15f, 0f));
+            SetRect(facilityText.rectTransform, new Vector2(0f, 0.08f), new Vector2(1f, 0.62f), new Vector2(18f, 0f), new Vector2(-15f, 0f));
             facilityPanel.SetActive(false);
         }
 
         private void BuildMessages()
         {
             GameObject banner = Panel("MessageBanner", root, new Color(0.02f, 0.06f, 0.10f, 0.88f),
-                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(700f, 46f));
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 84f), new Vector2(700f, 48f));
+            StyleCapsule(banner, new Color(0.68f, 0.64f, 0.82f, 0.48f));
             banner.GetComponent<Image>().raycastTarget = false;
             messageText = TextBlock(banner.transform, "", 16, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             SetRect(messageText.rectTransform, Vector2.zero, Vector2.one, new Vector2(12f, 2f), new Vector2(-12f, -2f));
@@ -406,6 +501,48 @@ namespace Astra
             return panel;
         }
 
+        private void StyleCapsule(GameObject panel, Color outlineColor)
+        {
+            if (panel == null) return;
+            Image image = panel.GetComponent<Image>();
+            if (image == null) return;
+            image.sprite = GetCapsuleSprite();
+            image.type = Image.Type.Sliced;
+            Outline outline = panel.GetComponent<Outline>();
+            if (outline == null) outline = panel.AddComponent<Outline>();
+            outline.effectColor = outlineColor;
+            outline.effectDistance = new Vector2(1.2f, -1.2f);
+            outline.useGraphicAlpha = true;
+        }
+
+        private static Sprite GetCapsuleSprite()
+        {
+            if (capsuleSprite != null) return capsuleSprite;
+            const int size = 64;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.name = "ASTRA rounded capsule UI";
+            texture.hideFlags = HideFlags.DontSave;
+            Color32[] pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Max(Mathf.Abs(x - 31.5f) - 18f, 0f);
+                float dy = Mathf.Max(Mathf.Abs(y - 31.5f) - 18f, 0f);
+                float outside = Mathf.Sqrt(dx * dx + dy * dy) - 14f;
+                float edge = Mathf.Max(Mathf.Abs(x - 31.5f) - 18f, Mathf.Abs(y - 31.5f) - 18f) - 14f;
+                float signedDistance = dx > 0f && dy > 0f ? outside : edge;
+                byte alpha = (byte)Mathf.RoundToInt(Mathf.Clamp01(0.5f - signedDistance) * 255f);
+                pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            capsuleSprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f,
+                0, SpriteMeshType.FullRect, new Vector4(22f, 22f, 22f, 22f));
+            capsuleSprite.name = "ASTRA rounded capsule UI";
+            capsuleSprite.hideFlags = HideFlags.DontSave;
+            return capsuleSprite;
+        }
+
         private Text TextBlock(Transform parent, string content, int size, Color color, FontStyle style, TextAnchor align)
         {
             GameObject item = new GameObject("Text", typeof(RectTransform), typeof(Text));
@@ -429,6 +566,7 @@ namespace Astra
         private Button MakeButton(Transform parent, string caption, Action action, Vector2 anchorMin, Vector2 anchorMax, Color color, int size)
         {
             GameObject buttonObject = Panel("Button_" + caption, parent, color, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+            StyleCapsule(buttonObject, new Color(0.78f, 0.76f, 0.88f, 0.32f));
             Button button = buttonObject.AddComponent<Button>();
             ColorBlock colors = button.colors;
             colors.normalColor = color;
@@ -455,8 +593,7 @@ namespace Astra
             if (state == null || !built) return;
             int missionNumber = (int)state.CurrentMission + 1;
             missionCodeText.text = AstraMissionCatalog.DestinationName(state.MissionDefinition.Destination) + " OUTPOST  •  MISSION " + missionNumber.ToString("00") + " / " + AstraMissionCatalog.Count.ToString("00");
-            missionTitleText.text = state.MissionDefinition.Title;
-            missionDescriptionText.text = state.MissionDefinition.Subtitle;
+            missionTitleText.text = "MISSION " + missionNumber.ToString("00") + "  /  " + AstraMissionCatalog.DestinationName(state.MissionDefinition.Destination);
             clockText.text = string.Format("{0:00}:{1:00}", Mathf.FloorToInt(state.missionSeconds / 60f), Mathf.FloorToInt(state.missionSeconds % 60f));
             statusText.text = "OUTPOST  /  " + state.GetOutpostStatus() + "   ·   HAB " + Mathf.RoundToInt(state.habitatCondition) + "%";
             UpdateResource(oxygenText, oxygenFill, state.oxygen);
@@ -487,20 +624,35 @@ namespace Astra
             }
             StringBuilder list = new StringBuilder();
             int complete = 0;
+            string nextObjective = "Mission objectives complete. Return to Mission Control.";
             bool noRead = PlayerSettingsManager.Instance != null && PlayerSettingsManager.Instance.NoReadingMode;
             string[] objectiveIcons = { "◉", "☀", "◎", "ϟ", "◉" };
             for (int i = 0; i < state.Objectives.Count; i++)
             {
                 MissionObjective objective = state.Objectives[i];
                 if (objective.complete) complete++;
+                else if (nextObjective.StartsWith("Mission objectives complete", StringComparison.Ordinal))
+                    nextObjective = objective.title;
                 list.Append(objective.complete ? "<color=#5ce3bd>✓</color>  " : "<color=#7e9aad>○</color>  ");
                 list.Append(noRead ? objectiveIcons[Mathf.Min(i, objectiveIcons.Length - 1)] : objective.title);
                 if (i < state.Objectives.Count - 1) list.Append('\n');
             }
             objectiveText.supportRichText = true;
             objectiveText.text = list.ToString();
-            progressText.text = "MISSION PROGRESS     " + complete + " / " + state.Objectives.Count;
+            activeObjectiveText.text = noRead ? "Current task  " + nextObjective : nextObjective;
+            progressText.text = complete + "/" + state.Objectives.Count;
             progressFill.fillAmount = state.Objectives.Count == 0 ? 0f : (float)complete / state.Objectives.Count;
+            if (touchControlsPanel != null)
+                touchControlsPanel.SetActive(state.missionStarted && !state.missionFinished);
+            if (pauseButton != null) pauseButton.interactable = state.missionStarted && !state.missionFinished;
+            AstraPlayerController currentPlayer = FindFirstObjectByType<AstraPlayerController>();
+            bool roverMounted = currentPlayer != null && currentPlayer.IsMountedInRover;
+            if (exitRoverButton != null) exitRoverButton.gameObject.SetActive(roverMounted && state.missionStarted && !state.missionFinished);
+            if (useActionButton != null)
+            {
+                Text useText = useActionButton.GetComponentInChildren<Text>();
+                if (useText != null) useText.text = roverMounted ? "SAMPLE" : "USE";
+            }
         }
 
         private void OpenMissionSource()
@@ -528,7 +680,7 @@ namespace Astra
                     string targetStatus = drive.IsAtSample
                         ? "Sample site reached. Press E / X to collect the virtual sample."
                         : "Drive to the orange beacon: " + Mathf.CeilToInt(drive.DistanceToSample) + " m remaining.";
-                    facilityText.text = "ROVER NAVIGATION\nW / S drive    A / D steer    Q / B exit\n" + targetStatus;
+                    facilityText.text = "ROVER NAVIGATION  ·  W/S DRIVE  ·  A/D STEER  ·  Q/B EXIT\n" + targetStatus;
                 }
                 facilityText.supportRichText = false;
                 return;
@@ -536,8 +688,14 @@ namespace Astra
             AstraInteractable nearest = player != null ? player.GetNearestFacility() : null;
             facilityPanel.SetActive(game != null && game.CanControlPlayer && nearest != null);
             if (nearest != null)
-                facilityText.text = nearest.facilityName + "\n<color=#9db2c3>Press <b>E / X / trigger</b> to interact</color>";
+                facilityText.text = nearest.facilityName + "   ·   Press E / X / trigger to interact";
             facilityText.supportRichText = true;
+        }
+
+        public void ToggleObjectiveList()
+        {
+            objectiveListVisible = !objectiveListVisible;
+            if (objectiveListPanel != null) objectiveListPanel.SetActive(objectiveListVisible);
         }
 
         public void SetIntroVisible(bool visible) => introPanel.SetActive(visible);
