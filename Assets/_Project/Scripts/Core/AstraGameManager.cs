@@ -309,7 +309,7 @@ namespace Astra
             }
             if (nearest == null)
             {
-                hud?.ShowMessage("No facility in range. Follow the cyan markers.");
+                hud?.ShowMessage("No object in interaction range. Follow the highlighted waypoint; press E when the object is in range.");
                 return;
             }
             nearest.Interact(this);
@@ -416,6 +416,34 @@ namespace Astra
             if (!stormInspectionChecked.Contains(FacilityType.SpaceWeatherStation)) return FindFacility(FacilityType.SpaceWeatherStation);
             if (!stormInspectionChecked.Contains(FacilityType.RadiationShelter)) return FindFacility(FacilityType.RadiationShelter);
             return FindFacility(FacilityType.SpaceWeatherStation);
+        }
+
+        public Transform GetActiveObjectiveTarget()
+        {
+            MissionObjective active = null;
+            foreach (MissionObjective objective in objectives)
+                if (!objective.complete) { active = objective; break; }
+            if (active == null) return null;
+
+            switch (active.id)
+            {
+                case AstraObjectiveId.Communications: return FindFacility(FacilityType.Communications);
+                case AstraObjectiveId.Solar: return FindFacility(FacilityType.SolarArray);
+                case AstraObjectiveId.LifeSupport: return FindFacility(FacilityType.LifeSupport);
+                case AstraObjectiveId.Shelter: return FindFacility(FacilityType.RadiationShelter);
+                case AstraObjectiveId.CropHarvest: return FindFacility(FacilityType.Greenhouse);
+                case AstraObjectiveId.StormResponse: return FindFacility(FacilityType.RadiationShelter);
+                case AstraObjectiveId.RoverSample:
+                case AstraObjectiveId.EuropaSiteInspected:
+                    return roverDrive != null && roverDrive.SampleSite != null ? roverDrive.SampleSite : FindFacility(FacilityType.Rover);
+                case AstraObjectiveId.OxygenRestored: return FindFacility(FacilityType.OxygenProcessor);
+                case AstraObjectiveId.WaterRestored: return FindFacility(FacilityType.WaterRecycler);
+                case AstraObjectiveId.WeatherReportReviewed: return FindFacility(FacilityType.SpaceWeatherStation);
+                case AstraObjectiveId.ProtectedAreaReadiness: return GetStormReadinessTarget();
+                case AstraObjectiveId.PostDrillInspection: return GetStormInspectionTarget();
+                case AstraObjectiveId.EuropaRoutePlanned: return FindFacility(FacilityType.Rover);
+                default: return null;
+            }
         }
 
         private static Transform FindFacility(FacilityType type)

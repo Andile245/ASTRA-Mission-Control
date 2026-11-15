@@ -24,13 +24,13 @@ namespace Astra
         private PanelSettings runtimePanelSettings;
         private Volume runtimeLookVolume;
         private VolumeProfile runtimeLookProfile;
-        private VisualElement root, hudLayer, topBar, resourceBar, objectivesPanel, objectiveListPanel, touchControls, missionMap;
+        private VisualElement root, hudLayer, topBar, resourceBar, objectivesPanel, objectiveListPanel, touchControls, missionMap, waypointPanel;
         private readonly Dictionary<Transform, VisualElement> missionMapMarkers = new Dictionary<Transform, VisualElement>();
         private VisualElement bottomBar, facilityPanel, resourceAlertPanel, messageBanner;
         private VisualElement introPanel, tutorialPanel, pausePanel, reportPanel, briefingPanel, eventPanel, stormPanel;
         private readonly Dictionary<TextElement, float> baseTextSizes = new Dictionary<TextElement, float>();
         private readonly Dictionary<string, VisualElement> resourceFills = new Dictionary<string, VisualElement>();
-        private Label missionCodeText, clockText, statusText, missionTitleText, missionDescriptionText;
+        private Label missionCodeText, clockText, statusText, missionTitleText, missionDescriptionText, waypointText;
         private Label objectiveText, objectiveChecklistText, activeObjectiveText, progressText, facilityText, resourceAlertText, messageText;
         private Label briefingBodyText, scienceDataText, eventCopyText;
         private Label stormTitleText, stormBodyText, reportTitleText, reportScoreText, reportBodyText, reportLearningText;
@@ -76,6 +76,7 @@ namespace Astra
             Refresh(game);
             UpdateFacilityPrompt();
             UpdateMissionMap();
+            UpdateWaypointGuide();
         }
 
         private void OnDestroy()
@@ -321,6 +322,13 @@ namespace Astra
             AddText(missionMap, "MISSION EQUIPMENT", "radar-legend", 9);
             hudLayer.Add(missionMap);
             missionMap.style.display = DisplayStyle.None;
+
+            waypointPanel = new VisualElement { name = "objective-waypoint" };
+            waypointPanel.AddToClassList("hud-waypoint-guide");
+            AddText(waypointPanel, "CURRENT OBJECTIVE TARGET", "hud-waypoint-title", 12);
+            waypointText = AddText(waypointPanel, "Follow the direction to your next station.", "hud-waypoint-copy", 16);
+            hudLayer.Add(waypointPanel);
+            waypointPanel.style.display = DisplayStyle.None;
         }
 
         private void UpdateMissionMap()
@@ -343,6 +351,10 @@ namespace Astra
             AstraRoverDrive rover = FindAnyObjectByType<AstraRoverDrive>();
             if (rover != null && rover.SampleSite != null && (game.CurrentMission == AstraMissionId.FirstLight || game.CurrentMission == AstraMissionId.ShadowScout))
                 SetMissionMapMarker(rover.SampleSite, "SMP", player.transform, active);
+
+            Transform activeTarget = game.GetActiveObjectiveTarget();
+            foreach (KeyValuePair<Transform, VisualElement> pair in missionMapMarkers)
+                pair.Value.EnableInClassList("radar-target", pair.Key == activeTarget);
 
             List<Transform> stale = null;
             foreach (KeyValuePair<Transform, VisualElement> pair in missionMapMarkers)
@@ -412,6 +424,45 @@ namespace Astra
                 case FacilityType.ResearchLab: return "LAB";
                 default: return "OBJ";
             }
+        }
+
+        private void UpdateWaypointGuide()
+        {
+            if (waypointPanel == null || game == null) return;
+            Transform target = game.GetActiveObjectiveTarget();
+            AstraPlayerController player = FindAnyObjectByType<AstraPlayerController>();
+            bool show = game.CanControlPlayer && target != null && player != null;
+            SetVisible(waypointPanel, show);
+            if (!show) return;
+
+            AstraInteractable targetFacility = target.GetComponent<AstraInteractable>();
+            if (targetFacility == null) targetFacility = target.GetComponentInParent<AstraInteractable>();
+            AstraInteractable nearest = player.GetNearestFacility();
+            AstraRoverDrive rover = player.IsMountedInRover ? player.MountedRover : null;
+            bool atSample = rover != null && rover.IsAtSample && target == rover.SampleSite;
+            bool inRange = atSample || (targetFacility != null && nearest == targetFacility);
+            if (inRange)
+            {
+                waypointText.text = (atSample ? "SAMPLE SITE REACHED" : targetFacility.facilityName.ToUpperInvariant()) + "  ·  PRESS E / X TO INTERACT";
+                return;
+            }
+
+            Vector3 offset = target.position - player.transform.position;
+            Vector3 flatOffset = new Vector3(offset.x, 0f, offset.z);
+            Vector3 flatForward = Camera.main != null ? Camera.main.transform.forward : player.transform.forward;
+            flatForward.y = 0f;
+            if (flatForward.sqrMagnitude < 0.001f) flatForward = Vector3.forward;
+            float angle = Vector3.SignedAngle(flatForward.normalized, flatOffset.normalized, Vector3.up);
+            string turn = Mathf.Abs(angle) < 22.5f ? "AHEAD" :
+                Mathf.Abs(angle) < 67.5f ? (angle > 0f ? "AHEAD-RIGHT" : "AHEAD-LEFT") :
+                Mathf.Abs(angle) < 112.5f ? (angle > 0f ? "RIGHT" : "LEFT") :
+                Mathf.Abs(angle) < 157.5f ? (angle > 0f ? "BEHIND-RIGHT" : "BEHIND-LEFT") : "TURN AROUND";
+            float bearingAngle = Mathf.Repeat(Mathf.Atan2(flatOffset.x, flatOffset.z) * Mathf.Rad2Deg, 360f);
+            string[] bearings = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+            string bearing = bearings[Mathf.RoundToInt(bearingAngle / 45f) % bearings.Length];
+            string targetName = target == (rover != null ? rover.SampleSite : null) ? "VIRTUAL SAMPLE SITE" :
+                targetFacility != null ? targetFacility.facilityName.ToUpperInvariant() : "MISSION OBJECTIVE";
+            waypointText.text = targetName + "  ·  " + turn + "  ·  " + bearing + "  ·  " + Mathf.CeilToInt(flatOffset.magnitude) + " m";
         }
 
         private void BuildResource(VisualElement parent, string title, string key)

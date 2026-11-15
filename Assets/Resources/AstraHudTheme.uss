@@ -80,7 +80,12 @@
 .radar-player { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin-left: -5px; margin-top: -5px; border-radius: 5px; background-color: rgb(255, 255, 255); border-left-width: 2px; border-right-width: 2px; border-top-width: 2px; border-bottom-width: 2px; border-left-color: rgb(28, 220, 255); border-right-color: rgb(28, 220, 255); border-top-color: rgb(28, 220, 255); border-bottom-color: rgb(28, 220, 255); }
 .radar-facility-marker { position: absolute; width: 32px; height: 17px; margin-left: -16px; margin-top: -8px; align-items: center; justify-content: center; background-color: rgba(7, 48, 70, 0.94); border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-left-color: rgb(255, 195, 73); border-right-color: rgb(255, 195, 73); border-top-color: rgb(255, 195, 73); border-bottom-color: rgb(255, 195, 73); }
 .radar-facility-code { color: rgb(255, 231, 178); font-size: 8px; -unity-font-style: bold; -unity-text-align: middle-center; }
+.radar-target { background-color: rgba(20, 150, 177, 0.98); border-left-color: rgb(73, 244, 255); border-right-color: rgb(73, 244, 255); border-top-color: rgb(73, 244, 255); border-bottom-color: rgb(73, 244, 255); }
+.radar-target .radar-facility-code { color: rgb(255, 255, 255); }
 .radar-legend { position: absolute; bottom: 17px; left: 0; right: 0; color: rgb(157, 195, 219); -unity-text-align: middle-center; -unity-font-style: bold; }
+.hud-waypoint-guide { position: absolute; left: 50%; top: 20.5%; width: 360px; margin-left: -180px; min-height: 62px; padding: 9px 14px; background-color: rgba(2, 16, 32, 0.94); border-left-width: 3px; border-left-color: rgb(32, 220, 248); }
+.hud-waypoint-title { color: rgb(42, 225, 247); -unity-font-style: bold; }
+.hud-waypoint-copy { color: rgb(244, 249, 255); -unity-font-style: bold; white-space: normal; }
 
 .hud-resource-tile {
     flex-grow: 1;
