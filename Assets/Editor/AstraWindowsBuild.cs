@@ -8,7 +8,7 @@ using UnityEngine;
 /// <summary>Builds the configured ASTRA scene into its Windows player folder.</summary>
 public static class AstraWindowsBuild
 {
-    private const string OutputPath = "Builds/Windows/ASTRA-Mission-Control-v2.exe";
+    private const string OutputPath = "Builds/Windows/ASTRA-Mission-Control-v3.exe";
 
     [MenuItem("ASTRA/Build Windows Player")]
     public static void Build()
@@ -34,5 +34,12 @@ public static class AstraWindowsBuild
         Debug.Log($"ASTRA Windows build: {report.summary.result} ({report.summary.totalSize / (1024 * 1024)} MB) at {OutputPath}");
         if (report.summary.result != BuildResult.Succeeded)
             throw new InvalidOperationException($"ASTRA Windows build failed: {report.summary.result}");
+    }
+
+    [MenuItem("ASTRA/Rebuild Scene and Build Windows Player")]
+    public static void RebuildSceneAndBuild()
+    {
+        AstraSceneBuilder.BuildScene();
+        Build();
     }
 }

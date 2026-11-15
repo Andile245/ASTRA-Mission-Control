@@ -1,10 +1,14 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Astra
 {
     /// <summary>Backfills mission facilities missing from an older saved bootstrap scene.</summary>
     public static class AstraMissionWorldSetup
     {
+        private static readonly Dictionary<string, Material> RuntimeMaterials = new Dictionary<string, Material>();
+        private static Texture2D sharedRegolithTexture;
+
         public static AstraInteractable EnsureSpaceWeatherStation()
         {
             foreach (AstraInteractable facility in Object.FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None))
@@ -70,20 +74,34 @@ namespace Astra
 
         public static void ApplyDestination(AstraDestinationId destination)
         {
+            UpgradeGeneratedOutpostVisuals();
             GameObject terrain = FindSceneObject("Regolith terrain mesh");
             Renderer terrainRenderer = terrain != null ? terrain.GetComponent<Renderer>() : null;
             if (terrainRenderer != null)
             {
-                Color color = destination == AstraDestinationId.Mars ? new Color(0.48f, 0.24f, 0.18f) :
-                    destination == AstraDestinationId.Europa ? new Color(0.30f, 0.43f, 0.50f) : new Color(0.30f, 0.31f, 0.33f);
-                terrainRenderer.material.color = color;
+                Color color = destination == AstraDestinationId.Mars ? new Color(0.58f, 0.32f, 0.24f) :
+                    destination == AstraDestinationId.Europa ? new Color(0.34f, 0.47f, 0.55f) : new Color(0.40f, 0.36f, 0.49f);
+                Material surface = terrainRenderer.material;
+                surface.color = color;
+                surface.mainTexture = GetRegolithTexture();
+                surface.mainTextureScale = Vector2.one;
             }
             Camera missionCamera = Camera.main;
             if (missionCamera != null)
                 missionCamera.backgroundColor = destination == AstraDestinationId.Mars ? new Color(0.055f, 0.018f, 0.012f) :
                     destination == AstraDestinationId.Europa ? new Color(0.008f, 0.025f, 0.065f) : new Color(0.004f, 0.006f, 0.016f);
             RenderSettings.ambientLight = destination == AstraDestinationId.Mars ? new Color(0.34f, 0.19f, 0.14f) :
-                destination == AstraDestinationId.Europa ? new Color(0.20f, 0.29f, 0.40f) : new Color(0.25f, 0.25f, 0.27f);
+                destination == AstraDestinationId.Europa ? new Color(0.20f, 0.29f, 0.40f) : new Color(0.25f, 0.23f, 0.34f);
+            GameObject foregroundRidge = FindSceneObject("South-pole highlands foreground");
+            GameObject farRidge = FindSceneObject("South-pole highlands far ridge");
+            if (foregroundRidge != null)
+                foregroundRidge.GetComponent<Renderer>().material.color = destination == AstraDestinationId.Mars
+                    ? new Color(0.48f, 0.28f, 0.23f) : destination == AstraDestinationId.Europa
+                        ? new Color(0.34f, 0.43f, 0.55f) : new Color(0.38f, 0.32f, 0.48f);
+            if (farRidge != null)
+                farRidge.GetComponent<Renderer>().material.color = destination == AstraDestinationId.Mars
+                    ? new Color(0.25f, 0.12f, 0.12f) : destination == AstraDestinationId.Europa
+                        ? new Color(0.18f, 0.27f, 0.40f) : new Color(0.23f, 0.20f, 0.34f);
             foreach (Light light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
                 if (light.type == LightType.Directional)
                     light.color = destination == AstraDestinationId.Mars ? new Color(1f, 0.78f, 0.66f) :
@@ -205,16 +223,175 @@ namespace Astra
             part.transform.localPosition = localPosition;
             part.transform.localScale = localScale;
             Renderer renderer = part.GetComponent<Renderer>();
-            Material material = renderer.material;
-            material.color = color;
+            Material material = GetRuntimeMaterial(color, emission);
+            if (renderer != null && material != null) renderer.sharedMaterial = material;
+            Collider childCollider = part.GetComponent<Collider>();
+            if (childCollider != null) Object.Destroy(childCollider);
+            return part;
+        }
+
+        private static Material GetRuntimeMaterial(Color color, Color emission)
+        {
+            string key = color.ToString() + emission.ToString();
+            if (RuntimeMaterials.TryGetValue(key, out Material cached) && cached != null) return cached;
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Standard");
+            if (shader == null) return null;
+
+            Material material = new Material(shader)
+            {
+                name = "ASTRA Runtime Facility",
+                color = color,
+                enableInstancing = true
+            };
             if (material.HasProperty("_EmissionColor") && emission.maxColorComponent > 0f)
             {
                 material.EnableKeyword("_EMISSION");
                 material.SetColor("_EmissionColor", emission);
             }
-            Collider childCollider = part.GetComponent<Collider>();
-            if (childCollider != null) Object.Destroy(childCollider);
-            return part;
+            RuntimeMaterials[key] = material;
+            return material;
+        }
+
+        private static Texture2D GetRegolithTexture()
+        {
+            if (sharedRegolithTexture != null) return sharedRegolithTexture;
+            const int size = 256;
+            sharedRegolithTexture = new Texture2D(size, size, TextureFormat.RGB24, false, true)
+            {
+                name = "ASTRA procedural regolith",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 8
+            };
+            System.Random random = new System.Random(60115);
+            Vector2[] craters = new Vector2[22];
+            float[] radii = new float[craters.Length];
+            for (int i = 0; i < craters.Length; i++)
+            {
+                craters[i] = new Vector2((float)random.NextDouble(), (float)random.NextDouble());
+                radii[i] = Mathf.Lerp(0.012f, 0.045f, (float)random.NextDouble());
+            }
+
+            Color[] pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (float)x / size;
+                float v = (float)y / size;
+                float relief = (Mathf.PerlinNoise(u * 19f + 3.2f, v * 19f + 8.7f) - 0.5f) * 0.18f +
+                               (Mathf.PerlinNoise(u * 83f + 13.1f, v * 83f + 1.9f) - 0.5f) * 0.10f +
+                               (Mathf.PerlinNoise(u * 191f + 9.4f, v * 191f + 17.6f) - 0.5f) * 0.045f;
+                Vector2 uv = new Vector2(u, v);
+                for (int i = 0; i < craters.Length; i++)
+                {
+                    float d = Vector2.Distance(uv, craters[i]) / radii[i];
+                    if (d > 1.18f) continue;
+                    float bowl = Mathf.Max(0f, 1f - d * d);
+                    float rim = Mathf.Exp(-Mathf.Pow((d - 0.9f) / 0.13f, 2f));
+                    relief += -0.18f * bowl * bowl + 0.08f * rim;
+                }
+                float grain = Mathf.Clamp(0.76f + relief, 0.48f, 1f);
+                pixels[y * size + x] = new Color(grain, grain, grain, 1f);
+            }
+            sharedRegolithTexture.SetPixels(pixels);
+            sharedRegolithTexture.Apply(false, true);
+            return sharedRegolithTexture;
+        }
+
+        private static void UpgradeGeneratedOutpostVisuals()
+        {
+            GameObject astronaut = GameObject.Find("ASTRONAUT - Junior Commander");
+            Transform suit = astronaut != null ? astronaut.transform.Find("Suit model") : null;
+            if (suit != null)
+            {
+                Transform helmet = suit.Find("Helmet visor");
+                if (helmet != null)
+                {
+                    helmet.name = "Helmet shell";
+                    helmet.localPosition = new Vector3(0f, 1.84f, 0.02f);
+                    helmet.localScale = new Vector3(0.56f, 0.53f, 0.55f);
+                    SetVisualMaterial(helmet.gameObject, new Color(0.91f, 0.93f, 0.94f), Color.black);
+                }
+                AddVisual(suit, PrimitiveType.Cylinder, "Helmet neck seal", new Vector3(0f, 1.51f, 0f),
+                    new Vector3(0.30f, 0.13f, 0.30f), new Color(0.26f, 0.32f, 0.37f), Color.black);
+                AddVisual(suit, PrimitiveType.Sphere, "Helmet face shield", new Vector3(0f, 1.84f, 0.245f),
+                    new Vector3(0.43f, 0.34f, 0.20f), new Color(0.035f, 0.10f, 0.16f), new Color(0.015f, 0.10f, 0.18f));
+                AddVisual(suit, PrimitiveType.Cube, "Backpack status panel", new Vector3(0f, 1.10f, -0.558f),
+                    new Vector3(0.25f, 0.40f, 0.025f), new Color(0.05f, 0.67f, 0.82f), new Color(0.02f, 0.30f, 0.42f));
+                AddVisual(suit, PrimitiveType.Cube, "Chest oxygen indicator", new Vector3(-0.18f, 1.37f, 0.20f),
+                    new Vector3(0.08f, 0.19f, 0.035f), new Color(0.94f, 0.63f, 0.18f), new Color(0.48f, 0.20f, 0.02f));
+                AddSuitExtremity(suit, "Left arm pivot", "Left EVA glove", PrimitiveType.Sphere, new Vector3(0f, -0.45f, 0.02f),
+                    new Vector3(0.24f, 0.20f, 0.24f), new Color(0.85f, 0.88f, 0.89f));
+                AddSuitExtremity(suit, "Right arm pivot", "Right EVA glove", PrimitiveType.Sphere, new Vector3(0f, -0.45f, 0.02f),
+                    new Vector3(0.24f, 0.20f, 0.24f), new Color(0.85f, 0.88f, 0.89f));
+                AddSuitExtremity(suit, "Left leg pivot", "Left boot sole", PrimitiveType.Cube, new Vector3(0f, -0.57f, 0.10f),
+                    new Vector3(0.34f, 0.045f, 0.43f), new Color(0.89f, 0.55f, 0.15f));
+                AddSuitExtremity(suit, "Right leg pivot", "Right boot sole", PrimitiveType.Cube, new Vector3(0f, -0.57f, 0.10f),
+                    new Vector3(0.34f, 0.045f, 0.43f), new Color(0.89f, 0.55f, 0.15f));
+            }
+
+            AstraInteractable habitat = FindFacility(FacilityType.Habitat);
+            if (habitat != null)
+            {
+                for (int window = -1; window <= 1; window++)
+                {
+                    AddVisual(habitat.transform, PrimitiveType.Cube, "Habitat porthole frame " + window,
+                        new Vector3(window * 0.92f, 1.83f, 1.58f), new Vector3(0.62f, 0.62f, 0.13f),
+                        new Color(0.22f, 0.31f, 0.38f), Color.black);
+                    AddVisual(habitat.transform, PrimitiveType.Cube, "Habitat blue porthole " + window,
+                        new Vector3(window * 0.92f, 1.83f, 1.66f), new Vector3(0.46f, 0.46f, 0.045f),
+                        new Color(0.08f, 0.49f, 0.67f), new Color(0.02f, 0.20f, 0.33f));
+                }
+            }
+        }
+
+        private static void AddSuitExtremity(Transform suit, string pivotName, string visualName, PrimitiveType type,
+            Vector3 localPosition, Vector3 localScale, Color color)
+        {
+            Transform pivot = suit.Find(pivotName);
+            if (pivot != null) AddVisual(pivot, type, visualName, localPosition, localScale, color, Color.black);
+        }
+
+        private static GameObject AddVisual(Transform parent, PrimitiveType type, string name, Vector3 localPosition,
+            Vector3 localScale, Color color, Color emission)
+        {
+            Transform existing = parent.Find(name);
+            GameObject item;
+            if (existing != null)
+            {
+                item = existing.gameObject;
+            }
+            else
+            {
+                item = GameObject.CreatePrimitive(type);
+                item.name = name;
+                item.transform.SetParent(parent, false);
+                Collider collider = item.GetComponent<Collider>();
+                if (collider != null) Object.Destroy(collider);
+            }
+            item.transform.localPosition = localPosition;
+            item.transform.localScale = localScale;
+            SetVisualMaterial(item, color, emission);
+            return item;
+        }
+
+        private static void SetVisualMaterial(GameObject item, Color color, Color emission)
+        {
+            Renderer renderer = item != null ? item.GetComponent<Renderer>() : null;
+            Material material = GetRuntimeMaterial(color, emission);
+            if (renderer != null && material != null) renderer.sharedMaterial = material;
+        }
+
+        private static AstraInteractable FindFacility(FacilityType type)
+        {
+            AstraInteractable[] facilities = Object.FindObjectsByType<AstraInteractable>(FindObjectsSortMode.None);
+            foreach (AstraInteractable facility in facilities)
+                if (facility.facilityType == type) return facility;
+            return null;
         }
 
         private static void AddBeacon(Transform parent)

@@ -136,10 +136,10 @@ namespace Astra
             Text eye = TextBlock(visibility.transform, "◉\nV", 13, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
             SetRect(eye.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-            statusText = TextBlock(root, "OUTPOST  /  INITIALIZING", 12, new Color(0.56f, 1f, 0.82f), FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(statusText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-206f, -91f), new Vector2(-96f, -43f));
-            clockText = TextBlock(root, "00:00", 14, Color.white, FontStyle.Bold, TextAnchor.MiddleRight);
-            SetRect(clockText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-278f, -91f), new Vector2(-210f, -43f));
+            statusText = TextBlock(root, "OUTPOST  /  INITIALIZING", 11, new Color(0.56f, 1f, 0.82f), FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(statusText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-348f, -91f), new Vector2(-162f, -43f));
+            clockText = TextBlock(root, "00:00", 13, Color.white, FontStyle.Bold, TextAnchor.MiddleRight);
+            SetRect(clockText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-153f, -91f), new Vector2(-84f, -43f));
             GameObject pause = Panel("PauseButton", root, new Color(0.29f, 0.24f, 0.40f, 0.94f),
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-73f, -96f), new Vector2(-20f, -43f));
             StyleCapsule(pause, new Color(0.82f, 0.76f, 0.94f, 0.70f));
