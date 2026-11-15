@@ -13,7 +13,7 @@ namespace Astra
         [SerializeField] private float mouseSensitivity = 0.12f;
         [SerializeField] private float gamepadLookSpeed = 150f;
         [SerializeField] private float jumpHeight = 1.4f;
-        [SerializeField] private float cameraDistance = 7.2f;
+        [SerializeField] private float cameraDistance = 8.6f;
         [SerializeField] private float cameraSmoothTime = 0.08f;
         [SerializeField] private float cameraCollisionRadius = 0.22f;
 
@@ -21,7 +21,7 @@ namespace Astra
         private Camera followCamera;
         private AstraGameManager game;
         private float yaw;
-        private float pitch = 18f;
+        private float pitch = 27f;
         private float verticalSpeed;
         private float moveAmount;
         private bool sprinting;
@@ -268,7 +268,7 @@ namespace Astra
             controller.enabled = true;
             cameraVelocity = Vector3.zero;
             yaw = 0f;
-            pitch = 18f;
+            pitch = 27f;
             touchMoveInput = touchLookInput = Vector2.zero;
             touchJumpQueued = touchInteractQueued = touchRoverExitQueued = false;
         }

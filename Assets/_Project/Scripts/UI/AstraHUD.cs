@@ -212,21 +212,23 @@ namespace Astra
             touchControlsPanel.transform.SetParent(root, false);
             SetRect(touchControlsPanel.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-            CreateControlButton(touchControlsPanel.transform, "W", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.098f, 0.205f), new Vector2(0.146f, 0.294f), new Vector2(0f, 1f), false);
-            CreateControlButton(touchControlsPanel.transform, "A", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.048f, 0.115f), new Vector2(0.096f, 0.204f), new Vector2(-1f, 0f), false);
-            CreateControlButton(touchControlsPanel.transform, "S", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.098f, 0.115f), new Vector2(0.146f, 0.204f), new Vector2(0f, -1f), false);
-            CreateControlButton(touchControlsPanel.transform, "D", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.148f, 0.115f), new Vector2(0.196f, 0.204f), new Vector2(1f, 0f), false);
+            // Keep the controls large enough to see and press at the 1280x720 design resolution.
+            // These are fractional anchors, not pixel offsets; the old sub-pixel offsets hid the pads.
+            CreateControlButton(touchControlsPanel.transform, "W", new Vector2(0.235f, 0.17f), new Vector2(0.285f, 0.24f), Vector2.zero, Vector2.zero, new Vector2(0f, 1f), false);
+            CreateControlButton(touchControlsPanel.transform, "A", new Vector2(0.185f, 0.06f), new Vector2(0.235f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(-1f, 0f), false);
+            CreateControlButton(touchControlsPanel.transform, "S", new Vector2(0.235f, 0.06f), new Vector2(0.285f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(0f, -1f), false);
+            CreateControlButton(touchControlsPanel.transform, "D", new Vector2(0.285f, 0.06f), new Vector2(0.335f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(1f, 0f), false);
 
-            CreateControlButton(touchControlsPanel.transform, "◀", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.195f, 0.115f), new Vector2(-0.147f, 0.204f), new Vector2(-1f, 0f), true);
-            CreateControlButton(touchControlsPanel.transform, "▼", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.145f, 0.025f), new Vector2(-0.097f, 0.114f), new Vector2(0f, -1f), true);
-            CreateControlButton(touchControlsPanel.transform, "▲", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.145f, 0.205f), new Vector2(-0.097f, 0.294f), new Vector2(0f, 1f), true);
-            CreateControlButton(touchControlsPanel.transform, "▶", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-0.095f, 0.115f), new Vector2(-0.047f, 0.204f), new Vector2(1f, 0f), true);
-            useActionButton = CreateActionButton(touchControlsPanel.transform, "USE", new Vector2(0.76f, 0f), new Vector2(0.76f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchInteract(), new Color(0.10f, 0.47f, 0.49f, 0.90f));
-            CreateActionButton(touchControlsPanel.transform, "JUMP", new Vector2(0.69f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchJump(), new Color(0.25f, 0.23f, 0.38f, 0.90f));
-            exitRoverButton = CreateActionButton(touchControlsPanel.transform, "EXIT", new Vector2(0.69f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 82f), new Vector2(66f, 132f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchRoverExit(), new Color(0.38f, 0.22f, 0.32f, 0.92f));
+            CreateControlButton(touchControlsPanel.transform, "◀", new Vector2(0.685f, 0.06f), new Vector2(0.735f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(-1f, 0f), true);
+            CreateControlButton(touchControlsPanel.transform, "▼", new Vector2(0.735f, 0.06f), new Vector2(0.785f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(0f, -1f), true);
+            CreateControlButton(touchControlsPanel.transform, "▲", new Vector2(0.735f, 0.17f), new Vector2(0.785f, 0.24f), Vector2.zero, Vector2.zero, new Vector2(0f, 1f), true);
+            CreateControlButton(touchControlsPanel.transform, "▶", new Vector2(0.785f, 0.06f), new Vector2(0.835f, 0.13f), Vector2.zero, Vector2.zero, new Vector2(1f, 0f), true);
+            CreateActionButton(touchControlsPanel.transform, "JUMP", new Vector2(0.86f, 0f), new Vector2(0.86f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchJump(), new Color(0.25f, 0.23f, 0.38f, 0.90f));
+            useActionButton = CreateActionButton(touchControlsPanel.transform, "USE", new Vector2(0.92f, 0f), new Vector2(0.92f, 0f), new Vector2(0f, 25f), new Vector2(66f, 75f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchInteract(), new Color(0.10f, 0.47f, 0.49f, 0.90f));
+            exitRoverButton = CreateActionButton(touchControlsPanel.transform, "EXIT", new Vector2(0.86f, 0f), new Vector2(0.86f, 0f), new Vector2(0f, 82f), new Vector2(66f, 132f), () => FindFirstObjectByType<AstraPlayerController>()?.QueueTouchRoverExit(), new Color(0.38f, 0.22f, 0.32f, 0.92f));
             exitRoverButton.gameObject.SetActive(false);
             Text hint = TextBlock(root, "WASD MOVE  ·  E USE  ·  V TASKS  ·  ESC PAUSE", 11, new Color(0.85f, 0.85f, 0.92f, 0.9f), FontStyle.Bold, TextAnchor.MiddleCenter);
-            SetRect(hint.rectTransform, new Vector2(0.29f, 0f), new Vector2(0.69f, 0f), new Vector2(0f, 8f), new Vector2(0f, 34f));
+            SetRect(hint.rectTransform, new Vector2(0.34f, 0f), new Vector2(0.67f, 0f), new Vector2(0f, 34f), new Vector2(0f, 68f));
         }
 
         private void CreateControlButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,

@@ -95,7 +95,7 @@ public static class AstraSceneBuilder
         GameObject cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         Camera camera = cameraObject.AddComponent<Camera>();
-        camera.fieldOfView = 65f;
+        camera.fieldOfView = 60f;
         camera.nearClipPlane = 0.08f;
         camera.farClipPlane = 260f;
         camera.clearFlags = CameraClearFlags.SolidColor;
@@ -112,7 +112,7 @@ public static class AstraSceneBuilder
         sun.shadowResolution = UnityEngine.Rendering.LightShadowResolution.Medium;
         lightObject.transform.rotation = Quaternion.Euler(32f, -35f, 0f);
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.10f, 0.13f, 0.20f);
+        RenderSettings.ambientLight = new Color(0.15f, 0.13f, 0.23f);
         RenderSettings.ambientIntensity = 0.7f;
         // The Moon has no atmosphere: preserve a black sky and sharp distant silhouettes.
         RenderSettings.fog = false;
@@ -172,7 +172,7 @@ public static class AstraSceneBuilder
         terrain.transform.SetParent(parent, false);
         terrain.GetComponent<MeshFilter>().sharedMesh = terrainMesh;
         terrain.GetComponent<MeshCollider>().sharedMesh = terrainMesh;
-        SetMaterial(terrain, "Regolith", new Color(0.30f, 0.31f, 0.33f), 0.02f);
+        SetMaterial(terrain, "Regolith", new Color(0.34f, 0.31f, 0.43f), 0.02f);
     }
 
     private static float LunarTerrainHeight(float x, float z)
@@ -260,6 +260,7 @@ public static class AstraSceneBuilder
         AstraPlayerController player = astronaut.AddComponent<AstraPlayerController>();
         SerializedObject playerData = new SerializedObject(player);
         playerData.FindProperty("cameraTarget").objectReferenceValue = target.transform;
+        playerData.FindProperty("cameraDistance").floatValue = 8.6f;
         playerData.ApplyModifiedPropertiesWithoutUndo();
 
         AstraAstronautMotion motion = astronaut.AddComponent<AstraAstronautMotion>();
@@ -523,15 +524,15 @@ public static class AstraSceneBuilder
             if (Vector2.Distance(new Vector2(x, z), Vector2.zero) < 23f) continue;
             float size = (float)(random.NextDouble() * 0.62 + 0.16);
             float y = LunarTerrainHeight(x, z) + size * 0.28f;
-            GameObject rock = MakePrimitive(PrimitiveType.Sphere, "Regolith boulder", parent, new Vector3(x, y, z), new Vector3(size * 1.25f, size * 0.68f, size), Color.Lerp(new Color(0.32f, 0.34f, 0.37f), new Color(0.48f, 0.49f, 0.50f), (float)random.NextDouble()));
+            GameObject rock = MakePrimitive(PrimitiveType.Sphere, "Regolith boulder", parent, new Vector3(x, y, z), new Vector3(size * 1.25f, size * 0.68f, size), Color.Lerp(new Color(0.32f, 0.30f, 0.39f), new Color(0.49f, 0.46f, 0.56f), (float)random.NextDouble()));
             rock.transform.rotation = Quaternion.Euler((float)random.NextDouble() * 12f, (float)random.NextDouble() * 360f, (float)random.NextDouble() * 12f);
         }
     }
 
     private static void CreateDistantRidge(Transform parent)
     {
-        CreateMountainRidge(parent, "South-pole highlands foreground", 91f, 125f, 5f, 16f, new Color(0.28f, 0.30f, 0.34f), 31);
-        CreateMountainRidge(parent, "South-pole highlands far ridge", 108f, 135f, 13f, 26f, new Color(0.17f, 0.20f, 0.25f), 67);
+        CreateMountainRidge(parent, "South-pole highlands foreground", 91f, 125f, 5f, 16f, new Color(0.34f, 0.31f, 0.42f), 31);
+        CreateMountainRidge(parent, "South-pole highlands far ridge", 108f, 135f, 13f, 26f, new Color(0.19f, 0.17f, 0.28f), 67);
     }
 
     private static void CreateMountainRidge(Transform parent, string objectName, float z, float halfWidth, float minHeight, float maxHeight, Color color, int seed)
